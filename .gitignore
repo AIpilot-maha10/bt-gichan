@@ -1,0 +1,113 @@
+# =========================================================
+# bt-gichan .gitignore
+#  - 추적 대상: AIP_DCS BT 소스, Rule XML, 모니터링 도구, PropertySheets
+#  - 제외 대상: 빌드 산출물, 제공받은 RL 프레임워크/대용량 자산, 강의자료
+# =========================================================
+
+# ---- 워크스페이스 내 무관/대용량 최상위 폴더 ----
+/1일차 강의 자료/
+/2일차 강의 자료/
+/developbt-jegalmin/
+/update/
+/.claude/
+
+# ---- 제공 라이브러리 / 대용량 ----
+/AIP_LIB/Windows/
+/AIP_LIB/bin/
+/AIP_LIB/Rule.xml
+
+# ---- DogFightEnv: 제공받은 RL 프레임워크/자산(우리 산출물 아님) ----
+/AIP_LIB/DogFightEnv/Release/RLLibLstm/
+/AIP_LIB/DogFightEnv/Release/artifacts/
+/AIP_LIB/DogFightEnv/Release/aircraft/
+/AIP_LIB/DogFightEnv/Release/assets/
+/AIP_LIB/DogFightEnv/Release/engine/
+/AIP_LIB/DogFightEnv/Release/logs/
+/AIP_LIB/DogFightEnv/Release/engagement_logs/
+/AIP_LIB/DogFightEnv/Release/scripts/
+/AIP_LIB/DogFightEnv/Release/experiments/
+/AIP_LIB/DogFightEnv/Release/student/
+
+# =========================
+# Visual Studio / 빌드 산출물
+#  (주의: 'Release/' 블랭킷은 DogFightEnv/Release 와 충돌하므로 경로 지정)
+# =========================
+/AIP_LIB/AIP_DCS/Debug/
+/AIP_LIB/AIP_DCS/Release/
+/AIP_LIB/AIP_DCS/x64/
+/AIP_LIB/AIP_DCS/AIP_DCS/
+Debug/
+x64/
+x86/
+ARM/
+ARM64/
+build/
+Build/
+.vs/
+*.user
+*.suo
+*.VC.db
+*.VC.VC.opendb
+*.opendb
+*.o
+*.obj
+*.lo
+*.a
+*.lib
+*.exp
+*.ilk
+*.pdb
+*.idb
+*.ipdb
+*.iobj
+*.tlog
+*.lastbuildstate
+*.exe
+*.out
+*.app
+
+# DLL: 빌드 결과물 무시(소스로 재생성)
+*.dll
+*.so
+
+# =========================
+# Python
+# =========================
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+ENV/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+dist/
+
+# =========================
+# Logs / 런타임 출력
+# =========================
+*.log
+logs/
+log/
+output/
+outputs/
+results/
+runs/
+*.csv
+*.jsonl
+
+# =========================
+# OS / 임시
+# =========================
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+*~
