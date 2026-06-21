@@ -1,94 +1,13 @@
 <root main_tree_to_execute="MainTree">
-
   <BehaviorTree ID="MainTree">
-
-    <Fallback name="MainSelector">
-
-      <!-- PRIORITY 0: Emergency altitude recovery (below 500m) -->
-      <Sequence name="AltRecoverSeq">
-        <DECO_AltCheck name="LowAltCheck" UpDown="Less" Altitude="700" BB="{BB}"/>
-        <Task_AltRecover name="AltRecover" BB="{BB}"/>
-      </Sequence>
-
-      <!-- Target exists -->
-      <Sequence name="TargetSequence">
-
-        <SelectTarget name="SelectTarget" BB="{BB}"/>
-        <DirectionVectorUpdate name="DirectionVectorUpdate" BB="{BB}"/>
-        <DistanceUpdate name="DistanceUpdate" BB="{BB}"/>
-        <CheckSight name="CheckSight" BB="{BB}"/>
-        <AngleOffUpdate name="AngleOffUpdate" BB="{BB}"/>
-        <AspectAngleUpdate name="AspectAngleUpdate" BB="{BB}"/>
-
-        <Fallback name="TacticalSelector">
-
-          <!-- Branch 1: Defensive Break - enemy on tail (LOS > 95) and close -->
-          <Sequence name="DefensiveBreakSeq">
-            <DECO_LOSCheck name="LOSTailCheck" UpDown="Greater" InputLOS="95" BB="{BB}"/>
-            <DECO_DistanceCheck name="DefDistCheck" UpDown="Less" Distance="2500" BB="{BB}"/>
-            <Task_DefensiveBreak name="DefensiveBreak" BB="{BB}"/>
-          </Sequence>
-
-          <!-- Branch 2: Phase1 Attack - LOS < 1, distance 152-914m -->
-          <Sequence name="Phase1AttackSeq">
-            <DECO_LOSCheck name="Phase1LOSCheck" UpDown="Less" InputLOS="1" BB="{BB}"/>
-            <DECO_DistanceCheck name="Phase1DistMaxCheck" UpDown="Less" Distance="914" BB="{BB}"/>
-            <Task_Pursuit name="Phase1Attack" BB="{BB}"/>
-          </Sequence>
-
-          <!-- Branch 3: Phase2 Attack - AngleOff < 10, distance < 1067m -->
-          <Sequence name="Phase2AttackSeq">
-            <DECO_AngleOffCheck name="Phase2AOCheck" UpDown="Less" InputAO="10" BB="{BB}"/>
-            <DECO_DistanceCheck name="Phase2DistCheck" UpDown="Less" Distance="1067" BB="{BB}"/>
-            <Task_Pursuit name="Phase2Attack" BB="{BB}"/>
-          </Sequence>
-
-          <!-- Branch 4: Phase3 Lead Pursuit - AngleOff < 25, distance < 1220m -->
-          <Sequence name="Phase3LeadSeq">
-            <DECO_AngleOffCheck name="Phase3AOCheck" UpDown="Less" InputAO="25" BB="{BB}"/>
-            <DECO_DistanceCheck name="Phase3DistCheck" UpDown="Less" Distance="1220" BB="{BB}"/>
-            <Task_LeadPursuit name="Phase3Lead" BB="{BB}"/>
-          </Sequence>
-
-          <!-- Branch 5: Overshoot Avoidance - AngleOff > 30, close range -->
-          <Sequence name="OvershootAvoidSeq">
-            <DECO_AngleOffCheck name="OvershootAOCheck" UpDown="Greater" InputAO="30" BB="{BB}"/>
-            <DECO_DistanceCheck name="OvershootDistCheck" UpDown="Less" Distance="1500" BB="{BB}"/>
-            <Task_OffsetPursuit name="OffsetPursuit" BB="{BB}"/>
-          </Sequence>
-
-          <!-- Branch 6: High Yo-Yo - AngleOff < 25, mid range -->
-          <Sequence name="HighYoYoSeq">
-            <DECO_AngleOffCheck name="HiYoAOCheck" UpDown="Less" InputAO="25" BB="{BB}"/>
-            <DECO_DistanceCheck name="HiYoDistMinCheck" UpDown="Greater" Distance="1500" BB="{BB}"/>
-            <DECO_DistanceCheck name="HiYoDistMaxCheck" UpDown="Less" Distance="4000" BB="{BB}"/>
-            <Task_HighYoYo name="HighYoYo" BB="{BB}"/>
-          </Sequence>
-
-          <!-- Branch 7: Low Yo-Yo - far range, re-approach -->
-          <Sequence name="LowYoYoSeq">
-            <DECO_DistanceCheck name="LoYoDistCheck" UpDown="Greater" Distance="4000" BB="{BB}"/>
-            <Task_LowYoYo name="LowYoYo" BB="{BB}"/>
-          </Sequence>
-
-          <!-- Branch 8: Lead Pursuit - general approach -->
-          <Sequence name="LeadPursuitSeq">
-            <DECO_AngleOffCheck name="LeadAOCheck" UpDown="Less" InputAO="60" BB="{BB}"/>
-            <Task_LeadPursuit name="LeadPursuit" BB="{BB}"/>
-          </Sequence>
-
-          <!-- Default: direct pursuit -->
-          <Task_Pursuit name="DefaultPursuit" BB="{BB}"/>
-
-        </Fallback>
-
-      </Sequence>
-
-      <!-- No target: fly straight -->
-      <Task_Empty name="NoTargetStraight" BB="{BB}"/>
-
-    </Fallback>
-
+    <Sequence>
+      <SelectTarget name="SelectTarget" BB="{BB}"/>
+      <DirectionVectorUpdate name="DirectionVectorUpdate" BB="{BB}"/>
+      <DistanceUpdate name="DistanceUpdate" BB="{BB}"/>
+      <CheckSight name="CheckSight" BB="{BB}"/>
+      <AngleOffUpdate name="AngleOffUpdate" BB="{BB}"/>
+      <AspectAngleUpdate name="AspectAngleUpdate" BB="{BB}"/>
+      <Task_Tactical name="Tactical" BB="{BB}"/>
+    </Sequence>
   </BehaviorTree>
-
 </root>

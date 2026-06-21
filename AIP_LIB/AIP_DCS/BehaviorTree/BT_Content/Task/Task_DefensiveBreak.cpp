@@ -15,6 +15,7 @@ NodeStatus Action::Task_DefensiveBreak::tick()
 		+ Vector3(0.0f, 0.0f, 500.0f);
 
 	(*BB)->IsAimmingMode = false;
+	(*BB)->SelectedBehavior = "DefensiveBreak";
 
 	return NodeStatus::SUCCESS;
 }

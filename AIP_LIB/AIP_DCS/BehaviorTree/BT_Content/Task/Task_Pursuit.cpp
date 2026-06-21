@@ -14,6 +14,7 @@ NodeStatus Action::Task_Pursuit::tick()
 	MakeVPSafe(*BB, vp);
 	(*BB)->VP_Cartesian = vp;
 	(*BB)->IsAimmingMode = true;
+	(*BB)->SelectedBehavior = "Pursuit";
 
 	return NodeStatus::SUCCESS;
 }

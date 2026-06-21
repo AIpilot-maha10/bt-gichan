@@ -46,6 +46,7 @@ UCPPBehaviorTree::UCPPBehaviorTree()
 	eccen = 1.0 - P_R * P_R / (EQ_R * EQ_R);
 	bInitialized = false;
 	mGroundAvoidActive = false;
+	RuleXmlPath = "";
 
 	BB = new CPPBlackBoard();
 }
@@ -87,16 +88,18 @@ void UCPPBehaviorTree::init()
 		Factory.registerNodeType<Action::Task_OffsetPursuit>("Task_OffsetPursuit");
 		Factory.registerNodeType<Action::Task_DefensiveBreak>("Task_DefensiveBreak");
 		Factory.registerNodeType<Action::Task_AltRecover>("Task_AltRecover");
+		Factory.registerNodeType<Action::Task_Search>("Task_Search");
+		Factory.registerNodeType<Action::Task_Tactical>("Task_Tactical");
 
 
 
-		//파일로 트리 구조 정의
-		tree = Factory.createTreeFromFile("./Rule_gichan.xml"); 
+		//파일로 트리 구조 정의 (RuleXmlPath 우선, 미설정 시 기본값)
+		// 중요: {BB} 포트가 노드 생성 시점부터 동일 블랙보드를 참조하도록 createTreeFromFile에 직접 전달.
+		// (생성 후 rootBlackboard()->set 만 하면 포트 리매핑이 안 되어 트리가 자식 노드를 실행하지 못함 → VP=0 추락)
+		auto TreeBlackboard = BT::Blackboard::create();
+		TreeBlackboard->set<CPPBlackBoard*>("BB", BB);
+		tree = Factory.createTreeFromFile(RuleXmlPath.empty() ? "./Rule_gichan.xml" : RuleXmlPath.c_str(), TreeBlackboard);
 
-
-		//블랙보드 연결 : 원래는 블랙보드 내에 있는 모든 변수를 하나하나 이런식으로 입력해줘야하는 미친 비효율을 보이는 방식이지만 커스텀 블랙보드를 만들어 해당 블랙보드를 입력시킴
-		tree.rootBlackboard()->set<CPPBlackBoard*>("BB", BB);
-		
 		bInitialized = true;
 		std::cout << "Behavior Tree Initialized Successfully" << std::endl;
 	}
@@ -257,6 +260,8 @@ bool UCPPBehaviorTree::PreventLandCrash(StickValue& R, float& Throttle)
 	R.RudderCMD = 0.0f;
 	Throttle    = 1.0f;                          // 회복 중엔 풀 쓰로틀로 에너지 확보
 
+	BB->SelectedBehavior = "PreventLandCrash";   // 모니터링: 강제회복 발동 표시
+
 	return true;
 }
 
@@ -264,6 +269,11 @@ Vector3 UCPPBehaviorTree::GetVP()
 {
 	Vector3 Vp = (*BB).VP_Cartesian;
 	return Vp;
+}
+
+const char* UCPPBehaviorTree::GetSelectedBehavior() const
+{
+	return BB->SelectedBehavior.c_str();
 }
 
 

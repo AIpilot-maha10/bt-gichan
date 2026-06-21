@@ -19,6 +19,7 @@ NodeStatus Action::Task_LeadPursuit::tick()
 	MakeVPSafe(*BB, vp);
 	(*BB)->VP_Cartesian = vp;
 	(*BB)->IsAimmingMode = false;
+	(*BB)->SelectedBehavior = "LeadPursuit";
 
 	return NodeStatus::SUCCESS;
 }

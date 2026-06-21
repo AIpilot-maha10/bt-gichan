@@ -27,6 +27,18 @@ def to_f(v: str) -> float:
         return 0.0
 
 
+def _format_tasks(counts: dict, seq: list, n: int) -> str:
+    if not counts:
+        return ""
+    lines = ["\n  STRATEGY (Task별 체류시간)"]
+    for name, cnt in sorted(counts.items(), key=lambda kv: -kv[1]):
+        lines.append(f"    {name:18s}: {cnt:>5} ({cnt / n * 100:.1f}%)")
+    # 전환 시퀀스는 너무 길면 축약
+    seq_str = " -> ".join(seq[:25]) + (" ..." if len(seq) > 25 else "")
+    lines.append(f"    전환순서: {seq_str}")
+    return "\n".join(lines)
+
+
 def analyze(rows: list[dict], label: str = ""):
     n = len(rows)
     if n == 0:
@@ -47,6 +59,16 @@ def analyze(rows: list[dict], label: str = ""):
     p1 = sum(1 for r in rows if r.get("phase_active") == "Phase1")
     p2 = sum(1 for r in rows if r.get("phase_active") == "Phase2")
     p3 = sum(1 for r in rows if r.get("phase_active") == "Phase3")
+
+    # Task(전략)별 체류시간 + 전환 시퀀스
+    task_counts: dict[str, int] = {}
+    task_seq: list[str] = []
+    for r in rows:
+        t = r.get("task") or ""
+        if t:
+            task_counts[t] = task_counts.get(t, 0) + 1
+            if not task_seq or task_seq[-1] != t:
+                task_seq.append(t)
     own_ko = sum(1 for a in own_alts if a < KNOCKOUT_ALT_M)
     enemy_ko = sum(1 for a in enemy_alts if a < KNOCKOUT_ALT_M)
 
@@ -111,7 +133,7 @@ def analyze(rows: list[dict], label: str = ""):
   SAFETY
     Own alt violations (<{KNOCKOUT_ALT_M:.0f}m):   {own_ko} ticks
     Enemy alt violations:  {enemy_ko} ticks
-
+{_format_tasks(task_counts, task_seq, n)}
   TIME SEGMENTS
     {'Period':>12s}  {'Dealt':>7s}  {'Recv':>7s}  {'AvgDist':>8s}  {'AvgATA':>7s}""")
 

@@ -58,6 +58,16 @@ class TickRecord:
     cmd_pitch: float = 0.0
     cmd_yaw: float = 0.0
     cmd_throttle: float = 0.0
+    # BT 내부/파생 정보
+    task: str = ""           # 현재 실행 중인 Task(전략) 이름
+    vp_x: float = 0.0        # VP(추적점) 좌표
+    vp_y: float = 0.0
+    vp_z: float = 0.0
+    vp_dist: float = 0.0     # 내 위치 → VP 거리(m)
+    vp_dive_deg: float = 0.0 # 내 위치 → VP 하강각(+면 VP가 아래)
+    closure_ms: float = 0.0  # 닫힘속도(+면 접근), m/s
+    own_energy_m: float = 0.0  # 비에너지 = 고도 + v^2/2g (에너지 우위 판정)
+    enemy_energy_m: float = 0.0
 
 
 def _ata(own_ned: np.ndarray, tgt_ned: np.ndarray) -> float:
@@ -130,6 +140,9 @@ class EngagementMonitor:
         self._min_dist = float("inf")
         self._own_ko_ticks = 0
         self._enemy_ko_ticks = 0
+        self._prev_dist: float | None = None
+        self._prev_elapsed: float | None = None
+        self._task_ticks: dict[str, int] = {}
 
         log_path = Path(log_dir) if log_dir else Path("engagement_logs")
         log_path.mkdir(parents=True, exist_ok=True)
@@ -146,7 +159,8 @@ class EngagementMonitor:
         self._csv_writer.writeheader()
         print(f"[EngageLog] Recording → {self._csv_path}")
 
-    def record(self, ctx: RemoteClientContext, cmd: CMD | None = None):
+    def record(self, ctx: RemoteClientContext, cmd: CMD | None = None,
+               action_info: dict | None = None):
         if self._t0 is None:
             self.start()
 
@@ -157,6 +171,7 @@ class EngagementMonitor:
 
         self._tick += 1
         elapsed = time.time() - self._t0
+        action_info = action_info or {}
 
         own_ned = _ned_from_plane(own)
         enemy_ned = _ned_from_plane(enemy)
@@ -183,6 +198,31 @@ class EngagementMonitor:
             self._own_ko_ticks += 1
         if enemy.position.z < KNOCKOUT_ALT_M:
             self._enemy_ko_ticks += 1
+
+        # --- 파생: 닫힘속도 / 비에너지 / VP / Task ---
+        closure = 0.0
+        if self._prev_dist is not None and self._prev_elapsed is not None:
+            dt = elapsed - self._prev_elapsed
+            if dt > 1e-3:
+                closure = -(dist - self._prev_dist) / dt  # +면 접근
+        self._prev_dist = dist
+        self._prev_elapsed = elapsed
+
+        G = 9.81
+        own_energy = own.position.z + (own_spd * own_spd) / (2.0 * G)
+        enemy_energy = enemy.position.z + (enemy_spd * enemy_spd) / (2.0 * G)
+
+        task = str(action_info.get("task", "") or "")
+        if task:
+            self._task_ticks[task] = self._task_ticks.get(task, 0) + 1
+        vp = action_info.get("vp")
+        vp_x = vp_y = vp_z = vp_dist = vp_dive = 0.0
+        if vp is not None and len(vp) >= 3:
+            vp_x, vp_y, vp_z = float(vp[0]), float(vp[1]), float(vp[2])
+            vdx, vdy, vdz = vp_x - own.position.x, vp_y - own.position.y, vp_z - own.position.z
+            vp_dist = math.sqrt(vdx * vdx + vdy * vdy + vdz * vdz)
+            vhoriz = math.sqrt(vdx * vdx + vdy * vdy)
+            vp_dive = -math.degrees(math.atan2(vdz, max(vhoriz, 1e-6)))  # +면 VP가 아래
 
         rec = TickRecord(
             tick=self._tick,
@@ -218,6 +258,15 @@ class EngagementMonitor:
             cmd_pitch=round(cmd.pitch_cmd, 4) if cmd else 0.0,
             cmd_yaw=round(cmd.yaw_cmd, 4) if cmd else 0.0,
             cmd_throttle=round(cmd.throttle_cmd, 4) if cmd else 0.0,
+            task=task,
+            vp_x=round(vp_x, 1),
+            vp_y=round(vp_y, 1),
+            vp_z=round(vp_z, 1),
+            vp_dist=round(vp_dist, 1),
+            vp_dive_deg=round(vp_dive, 1),
+            closure_ms=round(closure, 1),
+            own_energy_m=round(own_energy, 0),
+            enemy_energy_m=round(enemy_energy, 0),
         )
         self._records.append(rec)
         if self._csv_writer:
@@ -230,10 +279,12 @@ class EngagementMonitor:
     def _print_live(self, r: TickRecord):
         print(
             f"[Engage] t={r.elapsed_sec:6.1f}s  "
-            f"dist={r.distance:6.0f}m  ATA={r.ata_deg:5.1f}°  AA={r.aa_deg:5.1f}°  "
-            f"alt={r.own_z:6.0f}m  spd={r.own_speed:5.0f}m/s  "
+            f"task={(r.task or '-'):16s}  "
+            f"dist={r.distance:6.0f}m  clos={r.closure_ms:+5.0f}  "
+            f"ATA={r.ata_deg:5.1f}  alt={r.own_z:6.0f}  spd={r.own_speed:5.0f}  "
+            f"E={r.own_energy_m:6.0f}vs{r.enemy_energy_m:6.0f}  "
             f"phase={r.phase_active or '-':6s}  "
-            f"dmg={self._cum_dealt:7.2f} / recv={self._cum_recv:7.2f}"
+            f"dmg={self._cum_dealt:6.2f}/{self._cum_recv:6.2f}"
         )
 
     def stop(self):
@@ -294,9 +345,17 @@ class EngagementMonitor:
   SAFETY
     Own alt violations:   {self._own_ko_ticks} ticks
     Enemy alt violations: {self._enemy_ko_ticks} ticks
-
+{self._format_task_breakdown(n)}
   CSV: {self._csv_path}
 {'=' * 60}""")
+
+    def _format_task_breakdown(self, n: int) -> str:
+        if not self._task_ticks:
+            return ""
+        lines = ["\n  STRATEGY (Task별 체류시간)"]
+        for name, cnt in sorted(self._task_ticks.items(), key=lambda kv: -kv[1]):
+            lines.append(f"    {name:18s}: {cnt:>5} ticks ({cnt / n * 100:.1f}%)")
+        return "\n".join(lines)
 
 
 class EngagementPolicy:
@@ -311,5 +370,7 @@ class EngagementPolicy:
 
     def compute_command(self, context: RemoteClientContext) -> CMD:
         cmd = self.inner.compute_command(context)
-        self.monitor.record(context, cmd)
+        # inner(ProviderCommandPolicy)가 직전 BT 결과(vp/task)를 보관해 둠
+        action_info = getattr(self.inner, "_last_action_info", None)
+        self.monitor.record(context, cmd, action_info)
         return cmd

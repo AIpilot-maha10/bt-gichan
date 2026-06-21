@@ -24,6 +24,7 @@ NodeStatus Action::Task_HighYoYo::tick()
 	(*BB)->VP_Cartesian = vp;
 
 	(*BB)->IsAimmingMode = false;
+	(*BB)->SelectedBehavior = "HighYoYo";
 
 	return NodeStatus::SUCCESS;
 }

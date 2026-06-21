@@ -240,6 +240,8 @@
     <ClInclude Include="BehaviorTree\BT_Content\Task\Task_OffsetPursuit.h" />
     <ClInclude Include="BehaviorTree\BT_Content\Task\Task_DefensiveBreak.h" />
     <ClInclude Include="BehaviorTree\BT_Content\Task\Task_AltRecover.h" />
+    <ClInclude Include="BehaviorTree\BT_Content\Task\Task_Search.h" />
+    <ClInclude Include="BehaviorTree\BT_Content\Task\Task_Tactical.h" />
     <ClInclude Include="BehaviorTree\BT_Content\Task\VPSafety.h" />
     <ClInclude Include="BehaviorTree\BT_Content\Decorator\DECO_AltCheck.h" />
     <ClInclude Include="BehaviorTree\CPPBehaviorTree.h" />
@@ -286,6 +288,8 @@
     <ClCompile Include="BehaviorTree\BT_Content\Task\Task_OffsetPursuit.cpp" />
     <ClCompile Include="BehaviorTree\BT_Content\Task\Task_DefensiveBreak.cpp" />
     <ClCompile Include="BehaviorTree\BT_Content\Task\Task_AltRecover.cpp" />
+    <ClCompile Include="BehaviorTree\BT_Content\Task\Task_Search.cpp" />
+    <ClCompile Include="BehaviorTree\BT_Content\Task\Task_Tactical.cpp" />
     <ClCompile Include="BehaviorTree\BT_Content\Decorator\DECO_AltCheck.cpp" />
     <ClCompile Include="BehaviorTree\bt_factory.cpp" />
     <ClCompile Include="BehaviorTree\condition_node.cpp" />

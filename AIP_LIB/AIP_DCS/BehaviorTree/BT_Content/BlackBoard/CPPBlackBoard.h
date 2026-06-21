@@ -2,6 +2,7 @@
 #include "../../../Geometry/Vector3.h"
 #include "../../../Geometry/EulerAngle.h"
 #include <vector>
+#include <string>
 
 using namespace BT_Geometry;
 
@@ -146,6 +147,7 @@ public:
 
 
 	bool IsAimmingMode;
-	
+
+	std::string SelectedBehavior;							//현재 실행 중인 Task(전략) 이름 — 모니터링/분석용
 
 };

@@ -15,9 +15,7 @@ namespace Action
 	{
 		Optional<CPPBlackBoard*> BB = getInput<CPPBlackBoard*>("BB");
 
-		//std::cout << "Size : " << (*BB)->Enemy.size() << std::endl;
-
-		//ÇÐ»ýµéÀº 1´ë1¸¸ ¾µ²¨¶ó ±×³É ±øÀ¸·Î Å¸°Ù ÁöÁ¤
+		//ï¿½Ð»ï¿½ï¿½ï¿½ï¿½ï¿½ 1ï¿½ï¿½1ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½×³ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ Å¸ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½
 		if((*BB)->Enemy.size() > 0)
 		{
 			(*BB)->ACM = EF;

@@ -7,3 +7,5 @@
 #include "Task_OffsetPursuit.h"
 #include "Task_DefensiveBreak.h"
 #include "Task_AltRecover.h"
+#include "Task_Search.h"
+#include "Task_Tactical.h"

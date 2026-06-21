@@ -60,6 +60,7 @@ public:
 	BT::Tree tree;	// C++ 비헤비어트리 트리
 	CPPBlackBoard* BB;	// C++ 비헤비어 트리의 기본 블랙보드 방식이 쓰레기 수준이라 따로 블랙보드 클래스를 구현하여 사용
 	StickController Controller; // 제어기. 비헤비어트리에서 VP(추적점)을 생성하면 그 VP를 향하여 움직이게 하는 Roll Pitch Yaw 커멘드 값을 생성
+	std::string RuleXmlPath;	// 로드할 Rule XML 경로. 비면 ./Rule_gichan.xml 사용 (SetRuleXmlPath로 클라별 지정)
 public:	
 	
 	
@@ -97,6 +98,9 @@ public:
 	bool PreventLandCrash(StickValue& R, float& Throttle);
 
 	Vector3 GetVP();
+
+	//현재 실행 중인 Task(전략) 이름 반환 — 모니터링/분석용
+	const char* GetSelectedBehavior() const;
 
 	//비헤비어트리 델타타입 설정 함수
 	void SetDeltaTime(double DT);

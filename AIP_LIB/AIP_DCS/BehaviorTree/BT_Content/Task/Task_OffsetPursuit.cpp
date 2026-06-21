@@ -19,6 +19,7 @@ NodeStatus Action::Task_OffsetPursuit::tick()
 	(*BB)->VP_Cartesian = vp;
 
 	(*BB)->IsAimmingMode = false;
+	(*BB)->SelectedBehavior = "OffsetPursuit";
 
 	return NodeStatus::SUCCESS;
 }

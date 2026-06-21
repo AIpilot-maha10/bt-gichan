@@ -35,8 +35,11 @@ CPPBlackBoard::CPPBlackBoard()
 
 	BFM = NONE;
 	ACM = EF;
-	
+
 	Team = UNKNOWN;
+
+	IsAimmingMode = false;
+	SelectedBehavior = "None";
 
 
 	

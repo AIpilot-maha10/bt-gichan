@@ -8,6 +8,11 @@
 
 using namespace std;
 
+// Release는 /OPT:REF(OptimizeReferences)로 내부 미참조 dllexport 함수를 제거한다.
+// GetCurrentTaskName은 내부에서 호출되지 않으므로 명시적 /EXPORT로 export를 강제한다.
+// (정의가 extern "C"라 심볼명이 언맹글드 "GetCurrentTaskName"이므로 이 이름으로 해소됨)
+#pragma comment(linker, "/EXPORT:GetCurrentTaskName")
+
 #define MAX_ITEM 51
 #define MAX_OTHRES 3
 #define D2R 1.745329251994330e-2
@@ -153,12 +158,19 @@ extern "C"
 
     __declspec(dllexport) Vector3 GetVP(oPlaneData& MyData);
 
+    //로드할 Rule XML 경로 지정. CreateBehaviorTree 전에 호출. 폴더 1개에서 클라별 다른 XML 로드용.
+    __declspec(dllexport) void SetRuleXmlPath(const char* path);
+
+    //현재 실행 중인 Task(전략) 이름 반환 — 모니터링/분석용
+    __declspec(dllexport) const char* GetCurrentTaskName(int OwnerID);
+
     __declspec(dllexport) void Reset();
     __declspec(dllexport) void RemoveBT(int OwnerID);
 
 }
 
 map<int, shared_ptr<UCPPBehaviorTree>> BTList;
+std::string g_ruleXmlPath;	// SetRuleXmlPath로 지정된 Rule XML 경로 (비면 DLL 기본값)
 
 Vector3 LLAtoCartesian(Vector3 LLA, Vector3 BaseLLA)
 {
@@ -191,12 +203,28 @@ void CreateBehaviorTree(int OwnerID, int ForceID)
 
     BT->ID = OwnerID;
     BT->ForceID = ForceID;
+    BT->RuleXmlPath = g_ruleXmlPath;	// 클라별 Rule XML 경로 적용(비면 DLL 기본값)
     BT->init();
 
     if (BT->IsInitialized())
     {
         BTList.insert(make_pair(BT->ID, BT));
     }
+}
+
+void SetRuleXmlPath(const char* path)
+{
+    g_ruleXmlPath = (path != nullptr) ? std::string(path) : std::string();
+}
+
+extern "C" const char* GetCurrentTaskName(int OwnerID)
+{
+    auto it = BTList.find(OwnerID);
+    if (it != BTList.end())
+    {
+        return it->second->GetSelectedBehavior();
+    }
+    return "";
 }
 
 void Reset()

@@ -24,6 +24,7 @@ NodeStatus Action::Task_AltRecover::tick()
 		+ Vector3(0.0f, 0.0f, 2500.0f);
 
 	(*BB)->IsAimmingMode = false;
+	(*BB)->SelectedBehavior = "AltRecover";
 
 	return NodeStatus::SUCCESS;
 }

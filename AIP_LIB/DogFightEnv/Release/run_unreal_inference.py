@@ -90,7 +90,9 @@ def parse_args():
 
 def build_action_provider(args):
     if args.mode == "bt":
-        return BTActionProvider(dll_name=args.bt_dll)
+        # rule_xml_path를 DLL에 직접 지정 → activate_rule_xml/Rule_forTraining 충돌 없이
+        # 한 폴더에서 클라마다 자기 XML 로드. (구버전 DLL이면 SetRuleXmlPath는 무시됨)
+        return BTActionProvider(dll_name=args.bt_dll, rule_xml_path=args.bt_rule_xml)
 
     if args.bundle_dir is None:
         raise ValueError("--bundle-dir is required for rl and hybrid modes")
@@ -105,7 +107,7 @@ def build_action_provider(args):
     if args.mode == "rl":
         return rl_provider
 
-    bt_provider = BTActionProvider(dll_name=args.bt_dll)
+    bt_provider = BTActionProvider(dll_name=args.bt_dll, rule_xml_path=args.bt_rule_xml)
     return HybridActionProvider(
         primary_provider=rl_provider,
         secondary_provider=bt_provider,
