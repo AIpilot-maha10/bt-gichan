@@ -149,5 +149,6 @@ public:
 	bool IsAimmingMode;
 
 	std::string SelectedBehavior;							//현재 실행 중인 Task(전략) 이름 — 모니터링/분석용
+	int BehaviorHoldTicks;									//전술 상태 최소 유지 카운터 (떨림 방지 히스테리시스)
 
 };

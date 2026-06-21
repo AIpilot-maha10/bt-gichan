@@ -40,6 +40,7 @@ CPPBlackBoard::CPPBlackBoard()
 
 	IsAimmingMode = false;
 	SelectedBehavior = "None";
+	BehaviorHoldTicks = 0;
 
 
 	
