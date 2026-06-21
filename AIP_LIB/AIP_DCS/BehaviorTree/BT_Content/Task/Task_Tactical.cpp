@@ -64,8 +64,10 @@ NodeStatus Action::Task_Tactical::tick()
 		raw = "Pursuit";
 	else if (ao < 25.0f && dist < 1220.0f)
 		raw = "LeadPursuit";
+	else if (los > 40.0f && dist > 2500.0f)
+		raw = "Search";       // long-range: gentle horizontal turn-in (safe acquisition)
 	else if (los > 40.0f)
-		raw = "Search";
+		raw = "HardTurn";     // close-range off-nose: tight max-rate turn toward intercept
 	else if (ao > 30.0f && dist < 1500.0f)
 		raw = "OffsetPursuit";
 	else if (ao < 25.0f && dist > 1500.0f && dist < 4000.0f)
@@ -123,11 +125,20 @@ NodeStatus Action::Task_Tactical::tick()
 	}
 	else if (behavior == "Search")
 	{
+		// long-range acquisition: gentle horizontal turn-in toward the enemy + slight climb
 		Vector3 toT = predEnemy - myPos; toT.Z = 0.0;
 		float l = (float)std::sqrt(toT.X * toT.X + toT.Y * toT.Y);
 		Vector3 dir = (l > 1.0f) ? toT * (1.0f / l) : fwdFlat;
 		vp = myPos + dir * 5000.0f;
 		vp.Z = myPos.Z + 400.0f;
+	}
+	else if (behavior == "HardTurn")
+	{
+		// close-range max-rate turn: aim straight at the intercept point so the
+		// controller commands full bank + pull -> fastest nose-on. No climb offset
+		// (keep energy in the turn instead of leaking it to altitude).
+		vp = predEnemy;
+		aiming = true;
 	}
 	else if (behavior == "OffsetPursuit")
 	{
