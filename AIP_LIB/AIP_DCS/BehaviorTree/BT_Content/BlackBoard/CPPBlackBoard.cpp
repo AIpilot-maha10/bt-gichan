@@ -41,6 +41,8 @@ CPPBlackBoard::CPPBlackBoard()
 	IsAimmingMode = false;
 	SelectedBehavior = "None";
 	BehaviorHoldTicks = 0;
+	HardTurnDwell = 0;
+	BreakHoldTicks = 0;
 
 
 	

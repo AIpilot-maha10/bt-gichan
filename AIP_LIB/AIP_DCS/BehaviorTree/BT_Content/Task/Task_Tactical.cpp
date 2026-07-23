@@ -118,6 +118,25 @@ NodeStatus Action::Task_Tactical::tick()
 	const bool overspeedMerge = dist < 1800.0f && closure > 220.0f     // 과속 정면 접근
 		&& los < 60.0f && enemyAta > 60.0f;
 
+	// (v6 Phase1) 레이트 교착 탈출 판정 —
+	// V0.3 4판: HardTurn 89~95% 고착, 양측 ATA>60 지속(43~58%) = 서로 못 겨누는 원그리기.
+	// HardTurn이 STALEMATE_TICKS 넘게 지속되면 BreakManeuver(강한 리드 코너컷)로 강제 전환해
+	// 원을 깨고 정면 머지(=교차 스냅샷 기회)를 유도한다. BreakManeuver는 최소 시간 유지.
+	const int STALEMATE_TICKS = 150;   // 2.5초(60Hz) HardTurn 지속 = 교착으로 판단
+	const int BREAK_DURATION  = 90;    // BreakManeuver 1.5초 커밋
+	bool forceBreak = false;
+	if (bb->BreakHoldTicks > 0)
+	{
+		forceBreak = true;
+		bb->BreakHoldTicks -= 1;
+	}
+	else if (bb->HardTurnDwell >= STALEMATE_TICKS)
+	{
+		forceBreak = true;
+		bb->BreakHoldTicks = BREAK_DURATION;
+		bb->HardTurnDwell = 0;
+	}
+
 	std::string raw;
 	if (alt < 800.0f)
 		raw = "AltRecover";                                           // (v5) 하한 800m로 상향
@@ -125,6 +144,8 @@ NodeStatus Action::Task_Tactical::tick()
 		raw = "DefensiveBreak";   // 적이 내 꼬리에서 조준 중 = 진짜 위협
 	else if (inWezRange && noseOn)
 		raw = "SnapShot";         // (v5) 사거리내 기수근접 = 즉시 스냅샷 (아스펙트 무관)
+	else if (forceBreak && dist < 4000.0f)
+		raw = "BreakManeuver";    // (v6) 레이트 교착 -> 코너컷으로 원 깨기 (사격/방어 조건보다 낮은 우선순위)
 	else if (highAspectPass || overspeedMerge)
 		raw = "LagEntry";         // (v5) 과속 관통 + 90° 고아스펙트 패스 -> 지연추적
 	else if (dist < wez.rMax * 1.5f && los < 22.0f)
@@ -141,10 +162,10 @@ NodeStatus Action::Task_Tactical::tick()
 	// 나머지 기동 상태는 30틱 유지해 틱 단위 떨림 방지.
 	const std::string last = bb->SelectedBehavior;
 	const bool rawHard = (raw == "AltRecover" || raw == "DefensiveBreak" || raw == "GunAim"
-		|| raw == "LagEntry" || raw == "SnapShot");
+		|| raw == "LagEntry" || raw == "SnapShot" || raw == "BreakManeuver");
 	const bool lastSoft = !(last == "AltRecover" || last == "DefensiveBreak" || last == "GunAim"
-		|| last == "LagEntry" || last == "SnapShot" || last == "PreventLandCrash" || last == "None"
-		|| last == "Straight" || last == "");
+		|| last == "LagEntry" || last == "SnapShot" || last == "BreakManeuver"
+		|| last == "PreventLandCrash" || last == "None" || last == "Straight" || last == "");
 	std::string behavior;
 	if (rawHard)
 	{
@@ -161,6 +182,13 @@ NodeStatus Action::Task_Tactical::tick()
 		behavior = raw;
 		bb->BehaviorHoldTicks = 30;
 	}
+
+	// (v6 Phase1) HardTurn 지속 카운터 갱신 — 교착 감지용.
+	// BreakManeuver 중엔 건드리지 않고, HardTurn이면 누적, 그 외 상태면 리셋.
+	if (behavior == "HardTurn")
+		bb->HardTurnDwell += 1;
+	else if (behavior != "BreakManeuver")
+		bb->HardTurnDwell = 0;
 
 	// ── 3) 상태 -> VP + 스로틀 ──────────────────────────────────────
 	Vector3 vp;
@@ -234,6 +262,18 @@ NodeStatus Action::Task_Tactical::tick()
 		else
 			throttle = 0.7f;
 	}
+	else if (behavior == "BreakManeuver")
+	{
+		// (v6 Phase1) 레이트 교착 탈출: HardTurn은 적 "현재위치"를 겨눠 원을 따라 돌지만,
+		// 여기선 적 진행방향 "앞(강한 리드)"을 겨눠 원 안쪽을 가로질러 컷(corner-cut) -> 정면
+		// 머지로 수렴시켜 교차 스냅샷 기회를 만든다. 수평 유지(Phase1은 수직기동 미사용).
+		const float t_break = clampf(dist / std::max(speed, 150.0f), 1.2f, 2.5f);  // 큰 리드
+		vp = tgtPos + enemyVel * t_break;
+		vp.Z = myPos.Z;                       // 수평 (에너지 보존)
+		aiming = false;
+		maxDive = 12.0f;
+		throttle = CornerHoldThrottle(speed); // 코너속도로 최대 선회율 확보
+	}
 	else if (behavior == "HardTurn")
 	{
 		// 최대선회로 기수를 적 현재위치에 (리드 없음 = 최단 수렴).
@@ -256,24 +296,26 @@ NodeStatus Action::Task_Tactical::tick()
 		const float t_mid = clampf(dist / std::max(speed, 150.0f), 0.3f, 1.2f);
 		vp = tgtPos + enemyVel * t_mid;
 
-		// (v5) 고도보호 추격 — 26/07/24 서버: low-six 강하추격이 적 따라 지면까지
-		//   내려가 자멸(2/3판 306m 추락). 강하추격은 "내가 충분히 높을 때"만.
-		const bool enemyNearGround = (float)tgtPos.Z < 1200.0f;   // 적이 지면 근처
-		const bool iAmHigh         = (float)myPos.Z > 2200.0f;    // 나는 안전고도
-		if (enemyAta > 120.0f && enemyNearGround && (float)myPos.Z > tgtPos.Z)
+		// (v6 Phase1) 추격 복원 — v5는 low-six 강하추격을 alt>2200m로 막아 "직진 도주 추격"
+		//   장점을 통째로 잃었다(V0.3 4판: 적도주 closure -330 못잡음). 동일 기체는 수평
+		//   최고속이 같아 강하로 속도를 얻어야만 잡힌다. 그래서 강하 자체가 아니라 "지면충돌"만
+		//   막는다: 강하 후 예상고도가 안전(>1300m)하면 어느 고도에서든 강하추격 허용.
+		const float DIVE_DEPTH   = 300.0f;                          // 적 아래로 파고들 깊이
+		const bool  enemyNearGround = (float)tgtPos.Z < 1300.0f;    // 적이 지면 근처
+		const bool  diveKeepsSafe   = ((float)myPos.Z - DIVE_DEPTH) > 1300.0f; // 강하 후 안전
+		if (enemyAta > 110.0f && !enemyNearGround && diveKeepsSafe && (float)myPos.Z > tgtPos.Z - 100.0f)
 		{
-			// 적이 지면으로 도망 -> 따라 내려가지 않고 고도 유지.
-			// 동일 기체라 수평 최고속은 같으니, 적이 먼저 바닥 치게 두는 게 이득
-			// (26/07/24 #5판: 적이 먼저 306m 추락). 수평 추격만 유지.
+			// 강하추격 부활: 고도를 속도로 환전해 도주 표적을 따라잡는다 (지면 안전 확보됨)
+			vp.Z = (float)tgtPos.Z - DIVE_DEPTH;
+			maxDive = 25.0f;
+			throttle = 1.0f;
+		}
+		else if (enemyAta > 110.0f && enemyNearGround && (float)myPos.Z > tgtPos.Z)
+		{
+			// 적이 지면으로 도망 + 강하 위험 -> 따라 안내려가고 고도유지 수평추격
+			// (동일 기체라 적이 먼저 바닥 치게 두는 게 이득. 26/07/24 #5판 근거)
 			vp.Z = (float)myPos.Z;
 			maxDive = 6.0f;
-			throttle = (dist > 1500.0f) ? 1.0f : CornerHoldThrottle(speed);
-		}
-		else if (enemyAta > 120.0f && iAmHigh && (float)myPos.Z > tgtPos.Z - 200.0f)
-		{
-			// 고고도에서만 low-six 강하추격 허용 (고도를 속도로 환전)
-			vp.Z = (float)tgtPos.Z - 250.0f;
-			maxDive = 25.0f;
 			throttle = 1.0f;
 		}
 		else if (dist > 1500.0f)
