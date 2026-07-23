@@ -106,30 +106,44 @@ NodeStatus Action::Task_Tactical::tick()
 	//   - lead 예측점 조준 -> LOS가 리드각만큼 상시 오염, WEZ 진입 0틱 => GunAim은 현재위치 직조준
 	//   - Search가 29~42% 점유하며 거리만 유지 => 제거, Intercept/HardTurn으로 대체
 	//   - 중립 기하에서 DefensiveBreak 11~16% 낭비 => 적이 실제 조준중일 때만 발동)
+	// v5 파생 조건 (26/07/24 5판 진단 반영)
+	// - 추락 자멸(BT-Jegal전 2/3판): AltRecover 하한 700->800, 저고도 추격 억제
+	// - 2서클 원그리기 교착(jegalmin전): SnapShot 신설 — WEZ는 아스펙트 무관,
+	//   기수만 사거리내 적에 얹히면 데미지. 꼬리 안 잡아도 교차 순간 쏜다.
+	// - 90° 고아스펙트 패스: LagEntry를 교차 패스까지 확장 (오버슈트 방지)
+	const bool inWezRange   = dist < wez.rMax * 1.15f;                 // 사거리(+여유) 안
+	const bool noseOn       = los < 40.0f;                             // 기수가 적에 근접
+	const bool highAspectPass = dist < 2500.0f && closure > 150.0f     // 적이 90°로 가로지름
+		&& enemyAta > 55.0f && enemyAta < 130.0f && los > 45.0f;
+	const bool overspeedMerge = dist < 1800.0f && closure > 220.0f     // 과속 정면 접근
+		&& los < 60.0f && enemyAta > 60.0f;
+
 	std::string raw;
-	if (alt < 700.0f)
-		raw = "AltRecover";
+	if (alt < 800.0f)
+		raw = "AltRecover";                                           // (v5) 하한 800m로 상향
 	else if (enemyAta < 25.0f && dist < 1400.0f && los > 80.0f)
 		raw = "DefensiveBreak";   // 적이 내 꼬리에서 조준 중 = 진짜 위협
-	else if (dist < 1800.0f && closure > 220.0f && los < 60.0f && enemyAta > 60.0f)
-		raw = "LagEntry";         // 과속 접근 -> 적 꼬리 뒤를 조준해 관통(fly-through) 방지
-	else if (dist < wez.rMax * 1.3f ? (los < 45.0f) : (los < 15.0f && dist < wez.rMax * 1.6f))
-		raw = "GunAim";           // 종말 조준: 사거리 안은 넓게(45도), 조금 밖은 좁게(15도)
+	else if (inWezRange && noseOn)
+		raw = "SnapShot";         // (v5) 사거리내 기수근접 = 즉시 스냅샷 (아스펙트 무관)
+	else if (highAspectPass || overspeedMerge)
+		raw = "LagEntry";         // (v5) 과속 관통 + 90° 고아스펙트 패스 -> 지연추적
+	else if (dist < wez.rMax * 1.5f && los < 22.0f)
+		raw = "GunAim";           // 사거리 근처 정밀 추적 (SnapShot 밖의 좁은 창)
 	else if (los > 45.0f && dist < 3500.0f)
 		raw = "HardTurn";         // 기수부터 적에게 (머지 후 재교전 포함)
 	else if (dist >= 3500.0f)
 		raw = "Intercept";        // 원거리: 풀리드 인터셉트로 거리 압축
 	else
-		raw = "LeadPursuit";      // 중거리 15~45도: 리드 추적으로 각도 압축
+		raw = "LeadPursuit";      // 중거리 22~45도: 리드 추적으로 각도 압축
 
 	// ── 2) 히스테리시스 ─────────────────────────────────────────────
 	// 안전/방어/조준 상태는 즉시 전환(콘 1도짜리 조준은 반응성이 생명).
 	// 나머지 기동 상태는 30틱 유지해 틱 단위 떨림 방지.
 	const std::string last = bb->SelectedBehavior;
 	const bool rawHard = (raw == "AltRecover" || raw == "DefensiveBreak" || raw == "GunAim"
-		|| raw == "LagEntry");
+		|| raw == "LagEntry" || raw == "SnapShot");
 	const bool lastSoft = !(last == "AltRecover" || last == "DefensiveBreak" || last == "GunAim"
-		|| last == "LagEntry" || last == "PreventLandCrash" || last == "None"
+		|| last == "LagEntry" || last == "SnapShot" || last == "PreventLandCrash" || last == "None"
 		|| last == "Straight" || last == "");
 	std::string behavior;
 	if (rawHard)
@@ -181,6 +195,22 @@ NodeStatus Action::Task_Tactical::tick()
 		maxDive = 25.0f;
 		throttle = (speed > 200.0f) ? 0.2f : 0.5f;   // 적극 감속이 핵심
 	}
+	else if (behavior == "SnapShot")
+	{
+		// (v5) 교차 스냅샷: WEZ 콘 판정은 아스펙트 무관 -> 적 현재위치 정밀 직조준.
+		// 꼬리를 잡으려 원 그리지 말고, 기수가 얹히는 순간 바로 쏜다.
+		// 리드 없음(지연보상 최소)으로 콘 오염 최소화. 코너속도 유지해 과속 관통 방지.
+		const float t_comp = clampf(dist / 1000.0f, 0.02f, 0.08f);
+		vp = tgtPos + enemyVel * t_comp;
+		aiming = true;
+		maxDive = 30.0f;
+		hardFloor = 600.0f;
+		// 사거리 안에서 안정 조준하려면 과속 금지. 도주표적만 전속.
+		if (enemyAta > 120.0f && myPos.Z > 2200.0f)
+			throttle = 1.0f;
+		else
+			throttle = CornerHoldThrottle(speed);
+	}
 	else if (behavior == "GunAim")
 	{
 		// 종말 조준: 적 "현재 위치" 직조준 + 지연보상 소량 리드만.
@@ -226,19 +256,38 @@ NodeStatus Action::Task_Tactical::tick()
 		const float t_mid = clampf(dist / std::max(speed, 150.0f), 0.3f, 1.2f);
 		vp = tgtPos + enemyVel * t_mid;
 
-		// 도주 표적(적ATA>120°)은 동일 기체라 수평 추격으로 못 잡는다.
-		// (26/07/20 서버 3판: 꼬리 8.5° 잡고도 closure -22로 거리 벌어짐)
-		// 유일한 물리적 해법 = 적보다 약간 아래로 파고들어 고도를 속도로 환전(low-six).
-		if (enemyAta > 120.0f && myPos.Z > tgtPos.Z - 200.0f)
+		// (v5) 고도보호 추격 — 26/07/24 서버: low-six 강하추격이 적 따라 지면까지
+		//   내려가 자멸(2/3판 306m 추락). 강하추격은 "내가 충분히 높을 때"만.
+		const bool enemyNearGround = (float)tgtPos.Z < 1200.0f;   // 적이 지면 근처
+		const bool iAmHigh         = (float)myPos.Z > 2200.0f;    // 나는 안전고도
+		if (enemyAta > 120.0f && enemyNearGround && (float)myPos.Z > tgtPos.Z)
 		{
-			vp.Z = (float)tgtPos.Z - 250.0f;   // 적 6시 아래로 파고들기
-			maxDive = 30.0f;
+			// 적이 지면으로 도망 -> 따라 내려가지 않고 고도 유지.
+			// 동일 기체라 수평 최고속은 같으니, 적이 먼저 바닥 치게 두는 게 이득
+			// (26/07/24 #5판: 적이 먼저 306m 추락). 수평 추격만 유지.
+			vp.Z = (float)myPos.Z;
+			maxDive = 6.0f;
+			throttle = (dist > 1500.0f) ? 1.0f : CornerHoldThrottle(speed);
+		}
+		else if (enemyAta > 120.0f && iAmHigh && (float)myPos.Z > tgtPos.Z - 200.0f)
+		{
+			// 고고도에서만 low-six 강하추격 허용 (고도를 속도로 환전)
+			vp.Z = (float)tgtPos.Z - 250.0f;
+			maxDive = 25.0f;
 			throttle = 1.0f;
 		}
 		else if (dist > 1500.0f)
 			throttle = (closure > 300.0f) ? 0.5f : 1.0f;  // 과속 접근 억제(관통 방지)
 		else
 			throttle = CornerHoldThrottle(speed);
+	}
+
+	// ── (v5) 저고도 전역 보호 (모든 상태 공통) ─────────────────────
+	// 26/07/24 서버: 추격 몰입 중 지면충돌. 지면 근처면 VP가 아래를 못 향하게 강제.
+	if ((float)myPos.Z < 1500.0f)
+	{
+		if (maxDive > 8.0f)   maxDive = 8.0f;      // 하강각 대폭 제한
+		if (hardFloor < 1000.0f) hardFloor = 1000.0f;
 	}
 
 	// ── 실속 보호 (모든 상태 공통 오버라이드) ──────────────────────

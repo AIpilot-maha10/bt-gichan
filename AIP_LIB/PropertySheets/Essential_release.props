@@ -17,6 +17,8 @@
       <AdditionalIncludeDirectories>$(SolutionDir)Library/RTVCore;$(SolutionDir)../ref/boost/boost_1_67_0;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <!-- 한글 주석이 CP949로 오해석되어 다음 줄을 먹는 버그 방지 (소스는 UTF-8) -->
+      <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
       <AdditionalLibraryDirectories>$(SolutionDir)../bin/$(Configuration).$(ShortPlatform);$(SolutionDir)../ref/boost/boost_1_67_0/stage/$(Platform)/lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>

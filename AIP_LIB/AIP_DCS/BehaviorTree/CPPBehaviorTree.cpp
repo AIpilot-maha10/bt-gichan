@@ -208,10 +208,11 @@ StickValue UCPPBehaviorTree::Step(PlaneInfo MyInfo, int NumofOtherPlane, PlaneIn
 bool UCPPBehaviorTree::PreventLandCrash(StickValue& R, float& Throttle)
 {
 	// ── 튜닝 파라미터 ───────────────────────────────────────────────
-	const float HARD_FLOOR_M   = 350.0f;   // 절대 하한(녹아웃 1000ft=305m 바로 위)
-	const float ENGAGE_TTI_SEC = 7.0f;     // 충돌예측시간 < 이 값이면 즉시 개입
-	const float ENGAGE_ALT_M   = 500.0f;   // 이 고도 이하면 무조건 개입
-	const float RELEASE_ALT_M  = 1200.0f;  // 이 고도 위로 회복하면 해제(히스테리시스)
+	// (v5) 26/07/24 서버: 추격 몰입 중 지면충돌 2/3판. 개입 문턱을 조기화.
+	const float HARD_FLOOR_M   = 400.0f;   // 절대 하한(녹아웃 1000ft=305m 위 여유 확대)
+	const float ENGAGE_TTI_SEC = 9.0f;     // 충돌예측시간 < 이 값이면 즉시 개입 (7->9)
+	const float ENGAGE_ALT_M   = 800.0f;   // 이 고도 이하면 무조건 개입 (500->800)
+	const float RELEASE_ALT_M  = 1400.0f;  // 이 고도 위로 회복하면 해제(1200->1400)
 	const float UPRIGHT_DEG    = 80.0f;    // 이 롤각 이내면 "똑바로 섰다"고 보고 풀당김
 	// ───────────────────────────────────────────────────────────────
 
