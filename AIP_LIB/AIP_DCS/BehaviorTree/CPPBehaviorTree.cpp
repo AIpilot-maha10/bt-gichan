@@ -288,7 +288,12 @@ const char* UCPPBehaviorTree::GetSelectedBehavior() const
 		tree.tickRoot(); //트리 작동
 		VP = BB->VP_Cartesian;	// VP 값
 
-		Throttle = 1.0f;	// 쓰로틀 임시값, 개발 하면서 AI가 만들어내는 값을 넣으세요
+		// BT(Task_Tactical)가 결정한 전술 스로틀 사용.
+		// (기존: 1.0 하드코딩 -> 26/07/13 로그에서 전 구간 throttle=1.0,
+		//  300m/s+ 과속으로 선회 불가 -> WEZ 진입 0틱의 주원인이었음)
+		Throttle = BB->Throttle;
+		if (Throttle < 0.0f || Throttle > 1.0f || Throttle != Throttle)
+			Throttle = 1.0f;	// 미설정/이상값 방어
 	}
 	catch (const std::exception& e)
 	{

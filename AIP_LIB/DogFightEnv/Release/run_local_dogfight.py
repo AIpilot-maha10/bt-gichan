@@ -31,6 +31,10 @@ def parse_args():
     parser.add_argument("--ownship-bt-dll", default="AIP_DCS_ownship.dll")
     parser.add_argument("--target-bt-dll", default="AIP_BASE_target.dll")
     parser.add_argument("--bt-rule-xml", help="Optional Rule.xml source to activate while the simulation runs.")
+    # 사이드별 Rule XML: 서로 다른 BT DLL(예: gichan vs jegalmin)이 서로 다른 XML을
+    # 읽어야 하는 로컬 대전용. SetRuleXmlPath는 DLL별 전역이므로 DLL이 다르면 충돌 없음.
+    parser.add_argument("--ownship-bt-rule-xml", help="Rule XML for the ownship BT DLL (per-side override).")
+    parser.add_argument("--target-bt-rule-xml", help="Rule XML for the target BT DLL (per-side override).")
     parser.add_argument("--ownship-policy-id", default="default_policy")
     parser.add_argument("--target-policy-id", default="default_policy")
     parser.add_argument("--observation-mode", default="tactical16", choices=["classic12", "relative14", "tactical16", "custom"])
@@ -80,11 +84,11 @@ def _deep_log_row(step, own, tgt):
     }
 
 
-def build_provider(side: str, backend: str, bundle_dir: str | None, bt_dll: str, policy_id: str, hybrid_mode: str, alpha: float, residual_scale: float):
+def build_provider(side: str, backend: str, bundle_dir: str | None, bt_dll: str, policy_id: str, hybrid_mode: str, alpha: float, residual_scale: float, bt_rule_xml: str | None = None):
     if backend == "fixed":
         return None
     if backend == "bt":
-        return BTActionProvider(dll_name=bt_dll)
+        return BTActionProvider(dll_name=bt_dll, rule_xml_path=bt_rule_xml)
     if backend == "rl":
         if not bundle_dir:
             raise ValueError(f"--{side}-bundle-dir is required when {side}-backend=rl")
@@ -123,6 +127,7 @@ def main():
         hybrid_mode=args.hybrid_mode,
         alpha=args.alpha,
         residual_scale=args.residual_scale,
+        bt_rule_xml=args.ownship_bt_rule_xml,
     )
     target_provider = build_provider(
         side="target",
@@ -133,6 +138,7 @@ def main():
         hybrid_mode=args.hybrid_mode,
         alpha=args.alpha,
         residual_scale=args.residual_scale,
+        bt_rule_xml=args.target_bt_rule_xml,
     )
 
     env_config = {
