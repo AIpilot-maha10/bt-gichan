@@ -138,8 +138,8 @@ NodeStatus Action::Task_Tactical::tick()
 	}
 
 	std::string raw;
-	if (alt < 800.0f)
-		raw = "AltRecover";                                           // (v5) 하한 800m로 상향
+	if (alt < 900.0f)
+		raw = "AltRecover";                                           // (v6) 900m로 조기화 (녹아웃 305m 대비)
 	else if (enemyAta < 25.0f && dist < 1400.0f && los > 80.0f)
 		raw = "DefensiveBreak";   // 적이 내 꼬리에서 조준 중 = 진짜 위협
 	else if (inWezRange && noseOn)
@@ -300,19 +300,21 @@ NodeStatus Action::Task_Tactical::tick()
 		//   장점을 통째로 잃었다(V0.3 4판: 적도주 closure -330 못잡음). 동일 기체는 수평
 		//   최고속이 같아 강하로 속도를 얻어야만 잡힌다. 그래서 강하 자체가 아니라 "지면충돌"만
 		//   막는다: 강하 후 예상고도가 안전(>1300m)하면 어느 고도에서든 강하추격 허용.
+		// (v6 Phase1.5) 대회 녹아웃 1000ft(304.8m). 26/07/24 강하추격이 307m 추락 유발
+		//   -> 안전바닥을 1300m에서 1800m로 상향, 적이 2000m 밑이면 강하추격 자체 금지.
 		const float DIVE_DEPTH   = 300.0f;                          // 적 아래로 파고들 깊이
-		const bool  enemyNearGround = (float)tgtPos.Z < 1300.0f;    // 적이 지면 근처
-		const bool  diveKeepsSafe   = ((float)myPos.Z - DIVE_DEPTH) > 1300.0f; // 강하 후 안전
-		if (enemyAta > 110.0f && !enemyNearGround && diveKeepsSafe && (float)myPos.Z > tgtPos.Z - 100.0f)
+		const bool  enemyTooLow  = (float)tgtPos.Z < 2000.0f;       // 적이 2000m 밑 = 강하추격 금지
+		const bool  diveKeepsSafe = ((float)myPos.Z - DIVE_DEPTH) > 1800.0f; // 강하 후 >1800m
+		if (enemyAta > 110.0f && !enemyTooLow && diveKeepsSafe && (float)myPos.Z > tgtPos.Z - 100.0f)
 		{
-			// 강하추격 부활: 고도를 속도로 환전해 도주 표적을 따라잡는다 (지면 안전 확보됨)
+			// 강하추격: 고도를 속도로 환전해 도주 표적을 따라잡는다 (강하후 1800m+ 확보)
 			vp.Z = (float)tgtPos.Z - DIVE_DEPTH;
-			maxDive = 25.0f;
+			maxDive = 22.0f;
 			throttle = 1.0f;
 		}
-		else if (enemyAta > 110.0f && enemyNearGround && (float)myPos.Z > tgtPos.Z)
+		else if (enemyAta > 110.0f && (float)myPos.Z > tgtPos.Z)
 		{
-			// 적이 지면으로 도망 + 강하 위험 -> 따라 안내려가고 고도유지 수평추격
+			// 적이 낮거나 강하 불가 -> 따라 안내려가고 고도유지 수평추격
 			// (동일 기체라 적이 먼저 바닥 치게 두는 게 이득. 26/07/24 #5판 근거)
 			vp.Z = (float)myPos.Z;
 			maxDive = 6.0f;
@@ -324,12 +326,12 @@ NodeStatus Action::Task_Tactical::tick()
 			throttle = CornerHoldThrottle(speed);
 	}
 
-	// ── (v5) 저고도 전역 보호 (모든 상태 공통) ─────────────────────
-	// 26/07/24 서버: 추격 몰입 중 지면충돌. 지면 근처면 VP가 아래를 못 향하게 강제.
-	if ((float)myPos.Z < 1500.0f)
+	// ── (v6 Phase1.5) 저고도 전역 보호 (모든 상태 공통) ────────────
+	// 대회 녹아웃 1000ft(304.8m). 문턱을 1500->1800m로 올리고 하강각/바닥을 강화.
+	if ((float)myPos.Z < 1800.0f)
 	{
-		if (maxDive > 8.0f)   maxDive = 8.0f;      // 하강각 대폭 제한
-		if (hardFloor < 1000.0f) hardFloor = 1000.0f;
+		if (maxDive > 6.0f)   maxDive = 6.0f;      // 하강각 대폭 제한
+		if (hardFloor < 1100.0f) hardFloor = 1100.0f;
 	}
 
 	// ── 실속 보호 (모든 상태 공통 오버라이드) ──────────────────────

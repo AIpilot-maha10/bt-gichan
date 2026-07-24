@@ -208,11 +208,14 @@ StickValue UCPPBehaviorTree::Step(PlaneInfo MyInfo, int NumofOtherPlane, PlaneIn
 bool UCPPBehaviorTree::PreventLandCrash(StickValue& R, float& Throttle)
 {
 	// ── 튜닝 파라미터 ───────────────────────────────────────────────
-	// (v5) 26/07/24 서버: 추격 몰입 중 지면충돌 2/3판. 개입 문턱을 조기화.
-	const float HARD_FLOOR_M   = 400.0f;   // 절대 하한(녹아웃 1000ft=305m 위 여유 확대)
-	const float ENGAGE_TTI_SEC = 9.0f;     // 충돌예측시간 < 이 값이면 즉시 개입 (7->9)
-	const float ENGAGE_ALT_M   = 800.0f;   // 이 고도 이하면 무조건 개입 (500->800)
-	const float RELEASE_ALT_M  = 1400.0f;  // 이 고도 위로 회복하면 해제(1200->1400)
+	// 대회 공식 규정: 해수면 1000ft(304.8m) 이하 도달 시 추락 처리.
+	// (v6 Phase1.5) 26/07/24 서버: 강하추격 부활 후 307m 추락 재발(PLC 발동해도 못 살림).
+	//   -> 개입을 더 조기화 + 회복을 더 강력하게(중간 뱅크에서도 당김).
+	const float KNOCKOUT_M     = 304.8f;   // 대회 녹아웃 고도(1000ft) — 절대 넘으면 안 됨
+	const float HARD_FLOOR_M   = 450.0f;   // TTI 계산용 목표 바닥 (녹아웃 위 145m 여유)
+	const float ENGAGE_TTI_SEC = 11.0f;    // 충돌예측시간 < 이 값이면 즉시 개입 (9->11)
+	const float ENGAGE_ALT_M   = 1000.0f;  // 이 고도 이하면 무조건 개입 (800->1000)
+	const float RELEASE_ALT_M  = 1600.0f;  // 이 고도 위로 회복하면 해제 (1400->1600)
 	const float UPRIGHT_DEG    = 80.0f;    // 이 롤각 이내면 "똑바로 섰다"고 보고 풀당김
 	// ───────────────────────────────────────────────────────────────
 
@@ -244,15 +247,23 @@ bool UCPPBehaviorTree::PreventLandCrash(StickValue& R, float& Throttle)
 	while (roll > 180.0f)  roll -= 360.0f;
 	while (roll < -180.0f) roll += 360.0f;
 
-	// 1) wings-level로 롤(짧은 방향). cmdR 부호: +면 roll 증가, -면 roll 감소.
-	float rollCmd = -roll / 45.0f;
+	// 1) wings-level로 롤(짧은 방향). /35로 더 빠르게 수평화 (기존 /45).
+	float rollCmd = -roll / 35.0f;
 	if (rollCmd > 1.0f)  rollCmd = 1.0f;
 	if (rollCmd < -1.0f) rollCmd = -1.0f;
 
-	// 2) 피치: 똑바로 섰을 때만 풀당김(-1). 뒤집힌 동안 당기면 더 내려가므로 살짝만.
+	// 2) 피치: 똑바로 섰으면 풀당김. (v6) 중간 뱅크(80~120°)에서도 부분 당김으로
+	//    하강을 더 빨리 멈춘다 — 완전 수평까지 기다리다 늦어 추락한 사례 반영.
+	//    긴급(녹아웃 근접)하면 뱅크 무관 강제 풀당김.
 	float pitchCmd;
-	if (std::abs(roll) < UPRIGHT_DEG)
+	const float absRoll = std::abs(roll);
+	const bool  critical = (alt < KNOCKOUT_M + 300.0f) || (tti < 4.0f);   // 604m 이하 or TTI<4s
+	if (critical)
+		pitchCmd = -1.0f;                       // 긴급: 뱅크 무관 최대 상승
+	else if (absRoll < UPRIGHT_DEG)
 		pitchCmd = -1.0f;                       // upright → 최대 상승
+	else if (absRoll < 120.0f)
+		pitchCmd = -0.5f;                       // 중간 뱅크 → 부분 당김(하강 억제)
 	else
 		pitchCmd = -0.05f;                      // inverted → 우선 롤 수평부터
 
