@@ -211,12 +211,11 @@ bool UCPPBehaviorTree::PreventLandCrash(StickValue& R, float& Throttle)
 	// 대회 공식 규정: 해수면 1000ft(304.8m) 이하 도달 시 추락 처리.
 	// (v6 Phase1.5) 26/07/24 서버: 강하추격 부활 후 307m 추락 재발(PLC 발동해도 못 살림).
 	//   -> 개입을 더 조기화 + 회복을 더 강력하게(중간 뱅크에서도 당김).
-	const float KNOCKOUT_M     = 304.8f;   // 대회 녹아웃 고도(1000ft) — 절대 넘으면 안 됨
-	const float HARD_FLOOR_M   = 450.0f;   // TTI 계산용 목표 바닥 (녹아웃 위 145m 여유)
-	const float ENGAGE_TTI_SEC = 11.0f;    // 충돌예측시간 < 이 값이면 즉시 개입 (9->11)
-	const float ENGAGE_ALT_M   = 1000.0f;  // 이 고도 이하면 무조건 개입 (800->1000)
-	const float RELEASE_ALT_M  = 1600.0f;  // 이 고도 위로 회복하면 해제 (1400->1600)
-	const float UPRIGHT_DEG    = 80.0f;    // 이 롤각 이내면 "똑바로 섰다"고 보고 풀당김
+	const float KNOCKOUT_M     = 304.8f;          // 대회 녹아웃 고도(1000ft)
+	const float HARD_FLOOR_M   = KNOCKOUT_M + 145.0f;  // TTI 계산용 목표 바닥(=450m)
+	const float ENGAGE_TTI_SEC = 11.0f;    // 충돌예측시간 < 이 값이면 즉시 개입
+	const float ENGAGE_ALT_M   = 1000.0f;  // 이 고도 이하면 무조건 개입
+	const float RELEASE_ALT_M  = 1600.0f;  // 이 고도 위로 회복하면 해제(히스테리시스)
 	// ───────────────────────────────────────────────────────────────
 
 	const float alt   = (float)BB->MyLocation_Cartesian.Z;
@@ -247,25 +246,27 @@ bool UCPPBehaviorTree::PreventLandCrash(StickValue& R, float& Throttle)
 	while (roll > 180.0f)  roll -= 360.0f;
 	while (roll < -180.0f) roll += 360.0f;
 
-	// 1) wings-level로 롤(짧은 방향). /35로 더 빠르게 수평화 (기존 /45).
-	float rollCmd = -roll / 35.0f;
+	// 1) wings-level로 롤(짧은 방향). /30으로 공격적으로 수평화.
+	float rollCmd = -roll / 30.0f;
 	if (rollCmd > 1.0f)  rollCmd = 1.0f;
 	if (rollCmd < -1.0f) rollCmd = -1.0f;
 
-	// 2) 피치: 똑바로 섰으면 풀당김. (v6) 중간 뱅크(80~120°)에서도 부분 당김으로
-	//    하강을 더 빨리 멈춘다 — 완전 수평까지 기다리다 늦어 추락한 사례 반영.
-	//    긴급(녹아웃 근접)하면 뱅크 무관 강제 풀당김.
+	// 2) 피치 — 항공역학 원칙: "언로드하며 롤 수평 -> 수평 근처에서만 당김".
+	//    26/07/24 추락 분석: 뒤집힌 상태(|roll| 97~158°)에서 풀당김(-1.0)을 하는 바람에
+	//    위가 아니라 지면으로 파고들어 3초에 654m 급강하 -> 추락. 또한 풀당김 중엔 고G로
+	//    롤 권한이 무너져 수평 복귀조차 실패(=관측된 "떨림"). 그래서:
+	//      |roll|>90  : 언로드(0) — 당기면 지면으로 파고듦. 롤에 모든 권한을 준다
+	//      45~90      : 아주 약하게만
+	//      <45        : 그제서야 최대 상승
+	//    (긴급이라고 뱅크 무관 풀당김하는 로직은 제거 — 그게 추락 원인이었다)
 	float pitchCmd;
 	const float absRoll = std::abs(roll);
-	const bool  critical = (alt < KNOCKOUT_M + 300.0f) || (tti < 4.0f);   // 604m 이하 or TTI<4s
-	if (critical)
-		pitchCmd = -1.0f;                       // 긴급: 뱅크 무관 최대 상승
-	else if (absRoll < UPRIGHT_DEG)
-		pitchCmd = -1.0f;                       // upright → 최대 상승
-	else if (absRoll < 120.0f)
-		pitchCmd = -0.5f;                       // 중간 뱅크 → 부분 당김(하강 억제)
+	if (absRoll > 90.0f)
+		pitchCmd = 0.0f;                        // 인버티드: 절대 당기지 않음(언로드)
+	else if (absRoll > 45.0f)
+		pitchCmd = -0.2f;                       // 고뱅크: 약하게(롤 권한 확보 우선)
 	else
-		pitchCmd = -0.05f;                      // inverted → 우선 롤 수평부터
+		pitchCmd = -1.0f;                       // 수평 근처: 최대 상승
 
 	R.RollCMD   = rollCmd;
 	R.PitchCMD  = pitchCmd;
