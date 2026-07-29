@@ -96,6 +96,16 @@ NodeStatus Action::Task_Tactical::tick()
 	Vector3 relVel = myVel - enemyVel;
 	const float closure = (float)relVel.dot(losDir);
 
+	// (v6 Phase2) 헤딩교차각(HCA): 내 기수 vs 적 기수 사이각.
+	//   HCA 큼(>110°) = 서로 반대로 흐름 -> 2서클(레이트 교착) 가능성
+	//   HCA 작음       = 같은 방향 -> 1서클(각도전)
+	float hcaDot = (float)bb->MyForwardVector.dot(bb->TargetForwardVector);
+	hcaDot = clampf(hcaDot, -1.0f, 1.0f);
+	const float hca = std::acos(hcaDot) * 57.2957795f;
+
+	// 적이 내 어느 쪽에 있나 (+1=오른쪽, -1=왼쪽) — LeadTurn 역전 방향 결정용
+	const float enemySide = ((float)bb->MyRightVector.dot(losDir) >= 0.0f) ? 1.0f : -1.0f;
+
 	// 원거리 인터셉트용 예측점 (접근 단계 전용 — 종말 조준에는 사용 금지)
 	const float t_lead = clampf(dist / std::max(speed, 100.0f), 0.3f, 2.0f);
 	const Vector3 predEnemy = tgtPos + enemyVel * t_lead;
@@ -118,19 +128,20 @@ NodeStatus Action::Task_Tactical::tick()
 	const bool overspeedMerge = dist < 1800.0f && closure > 220.0f     // 과속 정면 접근
 		&& los < 60.0f && enemyAta > 60.0f;
 
-	// (v6 Phase1) 레이트 교착 탈출 판정 —
-	// V0.3 4판: HardTurn 89~95% 고착, 양측 ATA>60 지속(43~58%) = 서로 못 겨누는 원그리기.
-	// HardTurn이 STALEMATE_TICKS 넘게 지속되면 BreakManeuver(강한 리드 코너컷)로 강제 전환해
-	// 원을 깨고 정면 머지(=교차 스냅샷 기회)를 유도한다. BreakManeuver는 최소 시간 유지.
-	const int STALEMATE_TICKS = 150;   // 2.5초(60Hz) HardTurn 지속 = 교착으로 판단
-	const int BREAK_DURATION  = 90;    // BreakManeuver 1.5초 커밋
+	// (v6 Phase2) 2서클 레이트 교착 탈출 — LeadTurn(선회방향 역전).
+	// Phase1의 BreakManeuver(큰 리드 코너컷)는 실패(원그리기 43~53% 그대로): 코너컷은
+	// 회전방향을 안 바꿔 여전히 같이 오비트. 진짜 해법은 "선회방향을 역전"해 2서클을
+	// 1서클로 바꿔 정면 머지를 강제하는 것. HCA>110°(서로 반대로 흐름)로 2서클을 확인하고,
+	// HardTurn이 STALEMATE_TICKS 넘게 지속되면 LeadTurn을 BREAK_DURATION 동안 발동한다.
+	const int STALEMATE_TICKS = 150;   // 2.5초 HardTurn 지속 = 교착
+	const int BREAK_DURATION  = 75;    // LeadTurn 1.25초 커밋 (짧게 — 시야 회복 빠르게)
 	bool forceBreak = false;
 	if (bb->BreakHoldTicks > 0)
 	{
 		forceBreak = true;
 		bb->BreakHoldTicks -= 1;
 	}
-	else if (bb->HardTurnDwell >= STALEMATE_TICKS)
+	else if (bb->HardTurnDwell >= STALEMATE_TICKS && hca > 110.0f)   // 교착 + 2서클 확인
 	{
 		forceBreak = true;
 		bb->BreakHoldTicks = BREAK_DURATION;
@@ -145,7 +156,7 @@ NodeStatus Action::Task_Tactical::tick()
 	else if (inWezRange && noseOn)
 		raw = "SnapShot";         // (v5) 사거리내 기수근접 = 즉시 스냅샷 (아스펙트 무관)
 	else if (forceBreak && dist < 4000.0f)
-		raw = "BreakManeuver";    // (v6) 레이트 교착 -> 코너컷으로 원 깨기 (사격/방어 조건보다 낮은 우선순위)
+		raw = "LeadTurn";         // (v6 Phase2) 2서클 교착 -> 선회방향 역전으로 1서클 전환
 	else if (highAspectPass || overspeedMerge)
 		raw = "LagEntry";         // (v5) 과속 관통 + 90° 고아스펙트 패스 -> 지연추적
 	else if (dist < wez.rMax * 1.5f && los < 22.0f)
@@ -162,9 +173,9 @@ NodeStatus Action::Task_Tactical::tick()
 	// 나머지 기동 상태는 30틱 유지해 틱 단위 떨림 방지.
 	const std::string last = bb->SelectedBehavior;
 	const bool rawHard = (raw == "AltRecover" || raw == "DefensiveBreak" || raw == "GunAim"
-		|| raw == "LagEntry" || raw == "SnapShot" || raw == "BreakManeuver");
+		|| raw == "LagEntry" || raw == "SnapShot" || raw == "LeadTurn");
 	const bool lastSoft = !(last == "AltRecover" || last == "DefensiveBreak" || last == "GunAim"
-		|| last == "LagEntry" || last == "SnapShot" || last == "BreakManeuver"
+		|| last == "LagEntry" || last == "SnapShot" || last == "LeadTurn"
 		|| last == "PreventLandCrash" || last == "None" || last == "Straight" || last == "");
 	std::string behavior;
 	if (rawHard)
@@ -187,7 +198,7 @@ NodeStatus Action::Task_Tactical::tick()
 	// BreakManeuver 중엔 건드리지 않고, HardTurn이면 누적, 그 외 상태면 리셋.
 	if (behavior == "HardTurn")
 		bb->HardTurnDwell += 1;
-	else if (behavior != "BreakManeuver")
+	else if (behavior != "LeadTurn")
 		bb->HardTurnDwell = 0;
 
 	// ── 3) 상태 -> VP + 스로틀 ──────────────────────────────────────
@@ -262,17 +273,18 @@ NodeStatus Action::Task_Tactical::tick()
 		else
 			throttle = 0.7f;
 	}
-	else if (behavior == "BreakManeuver")
+	else if (behavior == "LeadTurn")
 	{
-		// (v6 Phase1) 레이트 교착 탈출: HardTurn은 적 "현재위치"를 겨눠 원을 따라 돌지만,
-		// 여기선 적 진행방향 "앞(강한 리드)"을 겨눠 원 안쪽을 가로질러 컷(corner-cut) -> 정면
-		// 머지로 수렴시켜 교차 스냅샷 기회를 만든다. 수평 유지(Phase1은 수직기동 미사용).
-		const float t_break = clampf(dist / std::max(speed, 150.0f), 1.2f, 2.5f);  // 큰 리드
-		vp = tgtPos + enemyVel * t_break;
-		vp.Z = myPos.Z;                       // 수평 (에너지 보존)
+		// (v6 Phase2) 선회방향 역전으로 2서클 -> 1서클 전환.
+		// 2서클에선 둘 다 같은 쪽으로 돌아 서로 못 겨눔. 여기서 "적이 있는 반대쪽"으로
+		// 크게 틀어 내 선회방향을 뒤집으면, 적은 원래대로 돌다가 내 정면으로 들어와
+		// 정면 머지(=교차 스냅샷)가 만들어진다. 수평 유지(수직기동 미사용).
+		// enemySide: 적이 오른쪽(+1)/왼쪽(-1). 반대쪽(-enemySide)으로 VP를 크게 던진다.
+		vp = myPos + fwdFlat * 2500.0f + bb->MyRightVector * (-enemySide * 5000.0f);
+		vp.Z = myPos.Z;
 		aiming = false;
-		maxDive = 12.0f;
-		throttle = CornerHoldThrottle(speed); // 코너속도로 최대 선회율 확보
+		maxDive = 10.0f;
+		throttle = CornerHoldThrottle(speed); // 코너속도로 최대 선회율
 	}
 	else if (behavior == "HardTurn")
 	{
