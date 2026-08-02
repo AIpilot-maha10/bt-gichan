@@ -216,7 +216,22 @@ NodeStatus Action::Task_Tactical::tick()
 		bb->MergeTurnTicks = 150;                // 2.5초. 회전방향을 확정짓는 데 필요한 최소치
 	}
 	if (bb->MergeTurnTicks > 0) bb->MergeTurnTicks -= 1;
-	const bool forceMergeTurn = (bb->MergeTurnTicks > 0);
+
+	// ⚠️ (EP7 결론 2026-08-03) MergeTurn 발동을 꺼둔다. 감지 로직은 계측용으로 남긴다.
+	//
+	// 셀당 10판에선 WEZ 0.51→1.94초(3.8배)로 보였는데, **75판으로 늘리니 사라졌다**:
+	//   WEZ 가한 것 0.85→1.16s  개선 11 / 악화 13  p=0.839   (효과 없음)
+	//   shutout     34판 → 37판                              (주 지표 악화)
+	//   교착 최장    13.24→12.11s 개선 27 / 악화 15 p=0.088   (유일한 방향성)
+	//   WEZ 최대     12.1→23.4s (beam_fast), 2.8→21.9s (head_on)  ← 편차만 커졌다
+	//
+	// 즉 "가끔 크게 터지고 대체로 손해"다. 계획에서 경계하던 "평균 40 / p20 0" 패턴 그대로.
+	//
+	// 원인 가설: **선회방향을 읽는 시점이 이르다.** §4.8.3.3은 "The Bandit will be the
+	// last to turn"이라고 한다. 최근접 통과 순간엔 적이 아직 안 돌았을 수 있어
+	// EnemyTurnSign이 잡음이다. 잘못된 방향으로 2.5초를 쓰면 그대로 손해.
+	// → 다음 시도: 머지 후 0.5~1초 관찰하고 나서 방향을 확정한다.
+	const bool forceMergeTurn = false && (bb->MergeTurnTicks > 0);
 
 	// 원거리 인터셉트용 예측점 (접근 단계 전용 — 종말 조준에는 사용 금지)
 	const float t_lead = clampf(dist / std::max(speed, 100.0f), 0.3f, 2.0f);
