@@ -1,0 +1,19 @@
+<root main_tree_to_execute="TopGunV2">
+  <BehaviorTree ID="TopGunV2">
+    <ReactiveSequence>
+      <V2UpdateGeometry/>
+      <ReactiveFallback>
+        <Sequence><V2NeedRecovery/><V2EmitRecovery/></Sequence>
+        <Sequence><V2NeedInputFallback/><V2EmitInputFallback/></Sequence>
+        <Sequence><V2NeedDefensiveBreak/><V2EmitDefensiveBreak/></Sequence>
+        <Sequence><V2NeedWezHold/><V2EmitWezHold/></Sequence>
+        <Sequence><V2NeedOvershoot/><V2EmitOvershoot/></Sequence>
+        <Sequence><V2NeedInitialCross/><V2EmitInitialCross/></Sequence>
+        <Sequence><V2NeedWezCapture/><V2EmitWezCapture/></Sequence>
+        <Sequence><V2NeedReengage/><V2EmitReengage/></Sequence>
+        <V2EmitAttackAcquire/>
+        <V2EmitFinalFallback/>
+      </ReactiveFallback>
+    </ReactiveSequence>
+  </BehaviorTree>
+</root>

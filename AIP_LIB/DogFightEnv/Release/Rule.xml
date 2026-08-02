@@ -1,0 +1,234 @@
+<root main_tree_to_execute="MainTree">
+
+  <BehaviorTree ID="MainTree">
+
+    <Fallback name="MainSelector">
+
+      <!-- 1. 생존 조건이 참이면 공격/추적보다 먼저 상승 회복 -->
+      <Sequence name="EmergencyRecoverySequence">
+
+        <DirectionVectorUpdate
+            name="RecoveryDirectionVectorUpdate"
+            BB="{BB}"/>
+
+        <DistanceUpdate
+            name="RecoveryDistanceUpdate"
+            BB="{BB}"/>
+
+        <DECO_EmergencyRecoverCheck
+            name="EmergencyRecoverCheck"
+            BB="{BB}"/>
+
+        <Task_RecoverClimb
+            name="Task_RecoverClimb"
+            BB="{BB}"/>
+
+      </Sequence>
+
+      <!-- 2. 후방 위협이 지속되는 동안 징킹 -->
+      <Sequence name="DefensiveJinkSequence">
+
+        <SelectTarget
+            name="JinkSelectTarget"
+            BB="{BB}"/>
+
+        <DirectionVectorUpdate
+            name="JinkDirectionVectorUpdate"
+            BB="{BB}"/>
+
+        <DistanceUpdate
+            name="JinkDistanceUpdate"
+            BB="{BB}"/>
+
+        <CheckSight
+            name="JinkCheckSight"
+            BB="{BB}"/>
+
+        <DECO_JinkThreatCheck
+            name="JinkThreatCheck"
+            BB="{BB}"/>
+
+        <Task_Jink
+            name="Task_Jink"
+            BB="{BB}"/>
+
+      </Sequence>
+
+      <!-- 3. 징킹 종료 후 재교전 -->
+      <Sequence name="JinkExitSequence">
+
+        <DECO_JinkExitCheck
+            name="JinkExitCheck"
+            BB="{BB}"/>
+
+        <Task_Recommit
+            name="Task_Recommit"
+            BB="{BB}"/>
+
+      </Sequence>
+
+      <!-- 4. 유효한 적이 있을 때 전투 판단 -->
+      <Sequence name="TargetSequence">
+
+        <SelectTarget
+            name="SelectTarget"
+            BB="{BB}"/>
+
+        <DirectionVectorUpdate
+            name="DirectionVectorUpdate"
+            BB="{BB}"/>
+
+        <DistanceUpdate
+            name="DistanceUpdateService"
+            BB="{BB}"/>
+
+        <CheckSight
+            name="TargetCheckSight"
+            BB="{BB}"/>
+
+        <AngleOffUpdate
+            name="AngleOffUpdate"
+            BB="{BB}"/>
+
+        <AspectAngleUpdate
+            name="AspectAngleUpdate"
+            BB="{BB}"/>
+
+        <Fallback name="CombatDecision">
+
+          <!-- 4-0. 정상 작동하던 초기 abeam merge는 그대로 유지 -->
+          <Sequence name="InitialMergeSequence">
+
+            <DECO_InitialAbeamCheck
+                name="InitialAbeamCheck"
+                BB="{BB}"/>
+
+            <Task_InitialMerge
+                name="Task_InitialMerge"
+                Geometry="PLANAR_TANGENT_ARC"
+                BB="{BB}"/>
+
+          </Sequence>
+
+          <!-- 4-1. 정면 고속 교차 전에 측면 오프셋 -->
+          <Sequence name="HeadOnAvoidSequence">
+
+            <DECO_HeadOnCheck
+                name="HeadOnCheck"
+                BB="{BB}"/>
+
+            <Task_OffsetTurnIn
+                name="Task_OffsetTurnIn"
+                BB="{BB}"/>
+
+          </Sequence>
+
+          <!-- 4-2. 근거리 고속 접근 시 오버슛 방지 -->
+          <Sequence name="OvershootGuardSequence">
+
+            <DECO_OvershootGuardCheck
+                name="OvershootGuardCheck"
+                BB="{BB}"/>
+
+            <Task_OvershootGuard
+                name="Task_OvershootGuard"
+                BB="{BB}"/>
+
+          </Sequence>
+
+          <!-- 4-3. 사격 조건을 만족하면 최우선 공격 -->
+          <Sequence name="AttackSequence">
+
+            <DECO_DistanceCheck
+                name="AttackDistanceCheck"
+                UpDown="Less"
+                Distance="2000"
+                BB="{BB}"/>
+
+            <DECO_LOSCheck
+                name="AttackLOSCheck"
+                UpDown="Less"
+                InputLOS="15"
+                BB="{BB}"/>
+
+            <DECO_ShotWindowCheck
+                name="ShotWindowCheck"
+                BB="{BB}"/>
+
+            <Task_Attack
+                name="Task_Attack"
+                BB="{BB}"/>
+
+          </Sequence>
+
+          <!--
+            4-4. 적이 전방에 있고 2500m 밖에 있을 때만 Energy Turn-In.
+            첫 교차 후 적이 측면/후방에 있는데 거리만 멀다는 이유로
+            장시간 EnergyTurnIn에 고착되는 현상을 방지한다.
+          -->
+          <Sequence name="InitialTurnInSequence">
+
+            <DECO_DistanceCheck
+                name="InitialTurnInDistanceCheck"
+                UpDown="Greater"
+                Distance="2500"
+                BB="{BB}"/>
+
+            <DECO_LOSCheck
+                name="InitialTurnInLOSCheck"
+                UpDown="Less"
+                InputLOS="70"
+                BB="{BB}"/>
+
+            <Task_EnergyTurnIn
+                name="Task_EnergyTurnIn"
+                BB="{BB}"/>
+
+          </Sequence>
+
+          <!--
+            4-5. 3000m 밖에서 EnergyTurnIn이 적합하지 않으면
+            일반 Approach로 재접근한다.
+          -->
+<!--
+            4-6. 중근거리이고 적이 완전한 후방이 아닐 때만 Lag Pursuit.
+            거리가 3000m 이상 벌어지면 Approach로 넘어가고,
+            LOS가 140도 이상이면 TurnToTarget으로 기수부터 돌린다.
+          -->
+          <Sequence name="LagPursuitSequence">
+
+<DECO_LOSCheck
+                name="LagPursuitLOSCheck"
+                UpDown="Less"
+                InputLOS="140"
+                BB="{BB}"/>
+
+            <DECO_LagPursuitCheck
+                name="LagPursuitCheck"
+                BB="{BB}"/>
+
+            <Task_LagPursuit
+                name="Task_LagPursuit"
+                BB="{BB}"/>
+
+          </Sequence>
+
+          <!-- 4-7. 조건부 전술이 모두 실패하면 기수부터 적에게 정렬 -->
+          <Task_TurnToTarget
+              name="CombatFallbackTurnToTarget"
+              BB="{BB}"/>
+
+        </Fallback>
+
+      </Sequence>
+
+      <!-- TargetSequence 자체가 실패한 경우의 단일 최후 행동 -->
+      <Task_TurnToTarget
+          name="MainTurnToTarget"
+          BB="{BB}"/>
+
+    </Fallback>
+
+  </BehaviorTree>
+
+</root>
