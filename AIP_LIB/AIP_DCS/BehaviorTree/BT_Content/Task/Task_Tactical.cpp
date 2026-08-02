@@ -82,6 +82,26 @@ static const float ONE_CIRCLE_CAS_LO = 260.0f;    // 하한 방어(250 + 여유)
 static const float TWO_CIRCLE_CAS_LO = 380.0f;
 static const float TWO_CIRCLE_CAS_HI = 430.0f;
 
+// ── (v7 EP8) 에너지 규율 ──────────────────────────────────────────────────
+// 실측(EP3): 코너속도(CAS 185 m/s=350kt) **미만 체류 97.6%**, 저속(CAS 90 m/s) 43.3%,
+// 실속권 13.5%, 최장 연속 저속 118초. 만성이다.
+// 스로틀은 이미 최대였다 -> 범인은 **지속적인 최대 G 선회의 유도항력**이다.
+//
+// 교범의 답 두 개:
+//  §4.6.3.1.5  "blend the aft stick pressure to obtain light buffet, **airspeed
+//               sustaining feel**. Cross-check the HUD to ensure airspeed is remaining steady."
+//               -> 최대 G가 아니라 **속도가 유지되는 G**로 낮춘다
+//  §4.4.1.1    "to sustain the current G load and airspeed, the aircraft **must descend**
+//               (change potential to kinetic energy)"
+//               -> 음의 Ps는 고도로 갚는다. 녹아웃 305m 대비 고도 여유는 충분하다
+//
+// 우리는 G를 직접 명령하지 않고 VP를 놓는다. 각오차가 곧 G이므로
+// **VP를 기수 쪽으로 블렌드하면 G가 내려간다**(부분 언로드).
+static const float SUSTAIN_CAS_LOW = 230.0f;   // 이 아래면 에너지 회복 개입
+static const float SUSTAIN_BLEND_SPAN = 90.0f; // 얼마나 느린지에 비례해 완화
+static const float SUSTAIN_MAX_BLEND = 0.55f;  // 완전 언로드는 안 한다(적을 놓치면 진다)
+static const float SUSTAIN_ALT_ROOM = 2500.0f; // 이 위에서만 강하로 갚는다 (EP8에서 1500->2500 상향)
+
 // (v7 시도1 되돌림) 아직 미사용 — 선회방향 구현 후 다시 쓴다
 static float FightThrottle(float casKt, bool oneCircle)
 {
@@ -280,6 +300,8 @@ NodeStatus Action::Task_Tactical::tick()
 		raw = "AltRecover";                                           // (v6) 900m로 조기화 (녹아웃 305m 대비)
 	else if (enemyAta < 25.0f && dist < 1400.0f && los > 80.0f)
 		raw = "DefensiveBreak";   // 적이 내 꼬리에서 조준 중 = 진짜 위협
+	else if (dist < 470.0f && closure > 40.0f && los < 90.0f)
+		raw = "GunRepo";          // (v7 EP10) 너무 붙었다 -> 거리 재설정. 아래 설명 참조
 	else if (inWezRange && noseOn)
 		raw = "SnapShot";         // (v5) 사거리내 기수근접 = 즉시 스냅샷 (아스펙트 무관)
 	else if (forceMergeTurn)
@@ -302,9 +324,9 @@ NodeStatus Action::Task_Tactical::tick()
 	// 나머지 기동 상태는 30틱 유지해 틱 단위 떨림 방지.
 	const std::string last = bb->SelectedBehavior;
 	const bool rawHard = (raw == "AltRecover" || raw == "DefensiveBreak" || raw == "GunAim"
-		|| raw == "LagEntry" || raw == "SnapShot" || raw == "LeadTurn" || raw == "MergeTurn");
+		|| raw == "LagEntry" || raw == "SnapShot" || raw == "LeadTurn" || raw == "MergeTurn" || raw == "GunRepo");
 	const bool lastSoft = !(last == "AltRecover" || last == "DefensiveBreak" || last == "GunAim"
-		|| last == "LagEntry" || last == "SnapShot" || last == "LeadTurn" || last == "MergeTurn"
+		|| last == "LagEntry" || last == "SnapShot" || last == "LeadTurn" || last == "MergeTurn" || last == "GunRepo"
 		|| last == "PreventLandCrash" || last == "None" || last == "Straight" || last == "");
 	std::string behavior;
 	if (rawHard)
@@ -362,6 +384,29 @@ NodeStatus Action::Task_Tactical::tick()
 		vp = lagPoint;
 		maxDive = 25.0f;
 		throttle = (speed > 200.0f) ? 0.2f : 0.5f;   // 적극 감속이 핵심
+	}
+	else if (behavior == "GunRepo")
+	{
+		// (v7 EP10) 사격 repo — §4.6.3.1.11
+		//   "The repo must occur in time for the fighter to remain outside the TR bubble.
+		//    Exact timing depends upon AA and closure but usually occurs between
+		//    1,500 feet and 1,800 feet." (= 457~549 m)
+		//
+		// 실측 근거: 좌표 수정 후 최소거리가 **150m**까지 붙는다. WEZ 최소사거리가
+		// 152.4m이므로 그 안쪽은 완벽히 조준해도 데미지가 0이고, 그 속도로 관통하면
+		// 각속도가 폭발해 기수가 따라가지 못한다(사거리 내 ATA 최솟값 5.44°에서 정체).
+		//
+		// 지연추적점(적 꼬리 뒤)으로 빠져 거리를 되찾는다. §4.6.2.2.10.1은 idle을 권한다.
+		Vector3 eFwd = bb->TargetForwardVector;
+		eFwd.Z = 0.0;
+		const float eLen = (float)std::sqrt(eFwd.X * eFwd.X + eFwd.Y * eFwd.Y);
+		if (eLen > 1e-3f) eFwd = eFwd * (1.0f / eLen);
+
+		vp = tgtPos - eFwd * 700.0f;      // 적 꼬리 뒤 700m — 거리를 벌리며 각을 유지
+		vp.Z = myPos.Z + 150.0;           // 살짝 위로 (제트워시 회피 + 에너지 보존)
+		aiming = false;
+		maxDive = 15.0f;
+		throttle = 0.15f;                 // idle에 가깝게 — 닫힘속도를 죽인다
 	}
 	else if (behavior == "SnapShot")
 	{
@@ -443,6 +488,46 @@ NodeStatus Action::Task_Tactical::tick()
 		aiming = true;
 		maxDive = 25.0f;
 		throttle = CornerHoldThrottle(speed);
+
+		// ── (v7 EP9) 에너지 규율 — 조준을 해치지 않는 구간에서만 ──────────
+		//
+		// EP8 실패: CAS<230이면 무조건 VP를 기수 쪽으로 블렌드했더니
+		//   에너지는 크게 좋아졌으나(실속권 13.5%→1.7%, 최장저속 118→36초)
+		//   **최소 ATA 1.97°→3.21°, shutout 34→38판**으로 조준이 망가졌다.
+		//   교범의 ease는 §4.6.3.1.8 "**if the cues are not met**" 일 때 쓰는 것인데
+		//   사격 가능 구간에서도 걸어버린 게 원인이다.
+		//
+		// → 언로드는 **어차피 못 쏘는 각도(ATA>45°)** 에서만 한다.
+		//   조준이 가능한 구간에서는 각을 살린다. "Lose sight, lose the fight."
+		//
+		// ⚠️ (EP9 결론) 이것도 실패. 발동을 껐다.
+		//   EP8(무조건 언로드): WEZ 0.85→0.92 개선14/악화22, shutout 34→38
+		//   EP9(ATA>45°에서만): WEZ 0.85→0.55 개선13/악화23, shutout 34→35
+		//   둘 다 에너지는 확실히 좋아졌다(최저속도 83→99·96→107·84→105 m/s,
+		//   실속권 체류 13.5%→1.7%). 그런데 **WEZ는 오히려 나빠졌다.**
+		//
+		// 해석: 중립 빔 교착은 양쪽 다 저에너지라 아무도 못 쏘는 상태다. 여기서
+		// 각을 내주고 에너지를 벌면 **상대만 각을 얻는다**. 에너지는 각도를 살 수
+		// 있을 때 가치가 있는데, 이 구도에선 그 전환이 안 일어난다.
+		// -> 에너지 회복은 VP(각도)를 희생하지 않는 경로로만 해야 한다.
+		//    스로틀은 이미 최대라 남은 건 항력 관리뿐인데 우리 제어에선 손댈 수 없다.
+		const bool noShotProspect = (los > 45.0f);
+		if (false && casKt < SUSTAIN_CAS_LOW && noShotProspect)
+		{
+			const float w = clampf((SUSTAIN_CAS_LOW - casKt) / SUSTAIN_BLEND_SPAN,
+			                       0.0f, SUSTAIN_MAX_BLEND);
+			const Vector3 nose = bb->MyForwardVector * dist;
+			vp = myPos + (rel * (1.0f - w) + nose * w);
+
+			// 음의 Ps를 고도로 갚는다. EP8에서 고도가 유의하게(p=0.004) 내려가
+			// 여유 기준을 1,500m -> 2,500m로 올렸다.
+			if (alt > SUSTAIN_ALT_ROOM)
+			{
+				maxDive = 35.0f;
+				vp.Z = myPos.Z - (double)(400.0f * w);
+			}
+			throttle = 1.0f;   // 회복 중엔 풀스로틀
+		}
 
 		// ⚠️ (v7 시도 1 — 되돌림 2026-08-03)
 		// 여기서 1서클/2서클에 따라 maxDive와 스로틀 목표만 바꿔봤다.
