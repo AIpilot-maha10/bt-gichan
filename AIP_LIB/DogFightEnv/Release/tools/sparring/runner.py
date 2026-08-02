@@ -184,11 +184,15 @@ class MatchRunner:
             task_best = max(task_best, task_run)
 
             if self.tick_sink is not None:
+                # 원시 51-state도 같이 넘긴다 — KCAS/KTAS/Nz 등 진단 스크립트가
+                # 필요로 하는 항목이 매번 달라서, 여기서 미리 고르지 않는다
                 self.tick_sink(ticks, {
                     "t": sim_t, "dist": dist, "my_ata": my_ata, "en_ata": en_ata,
                     "own_alt": alt, "own_spd": own_spd, "own_energy": own_e,
                     "task": task, "hca": W.hca_deg(own, tgt),
                     "aspect_from_tail": W.aspect_from_tail_deg(geo, own, tgt),
+                    "own_state": np.array(own, copy=True),
+                    "tgt_state": np.array(tgt, copy=True),
                 })
 
             if terminated or truncated:
