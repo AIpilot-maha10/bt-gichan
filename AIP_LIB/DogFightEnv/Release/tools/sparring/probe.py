@@ -39,6 +39,7 @@ class RecordingBTProvider(BTActionProvider):
         super().__init__(*args, **kwargs)
         self.last_task: str = ""
         self.last_vp = None
+        self.last_debug: dict = {}   # (A-0) BT 블랙보드 내부값
         self.reset_count: int = 0
 
     def reset(self, context: ActionContext | None = None) -> None:
@@ -50,6 +51,7 @@ class RecordingBTProvider(BTActionProvider):
         self._registered_fighter_ids.clear()
         self.last_task = ""
         self.last_vp = None
+        self.last_debug = {}
         self.reset_count += 1
 
     def compute_action(self, context: ActionContext) -> ActionResult:
@@ -57,4 +59,8 @@ class RecordingBTProvider(BTActionProvider):
         info = result.info or {}
         self.last_task = info.get("task", "") or ""
         self.last_vp = info.get("vp")
+        fid = info.get("fighter_id")
+        if fid is not None:
+            # Step 직후에 읽어야 이번 틱의 블랙보드 상태가 잡힌다
+            self.last_debug = self.ai_pilot.GetDebugScalars(fid)
         return result

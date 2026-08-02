@@ -122,10 +122,46 @@ bool UCPPBehaviorTree::IsInitialized() const
 	return bInitialized;
 }
 
+// ─────────────────────────────────────────────────────────────────────────
+// (A-0 수정) 위치 좌표계 자동판별 + 변환
+//
+// 문제: Step()이 입력 Location을 그대로 블랙보드에 넣고 있었다. 주석엔 "좌표계 변환"
+// 이라 적혀 있지만 실제 변환이 없었다. 로컬 sim은 LLA(위도°, 경도°, 고도m)를 주므로
+// bb->MyLocation_Cartesian에 (37.9, 128.2, 8600)이 들어간다.
+//
+// 결과(2026-08-02 GetDebugScalars로 실측):
+//   - Distance   : BT 486m  vs 실제 1922m  (비율 0.25) — 위경도 '도' 차이가 거의 0이라
+//                  거리가 고도차에 지배당한다
+//   - Los_Degree : BT 중앙 89.8° vs 실제 111.7° — LOS 벡터가 거의 수직이 되어
+//                  ATA가 항상 90° 부근으로 붙는다
+//   - HCA/속도   : 정상 (자세·속도는 위치와 무관하므로)
+//
+// 즉 거리·각도 기반 판단이 전부 무의미했다. SnapShot이 실제 3,170m·ATA 108°에서
+// 발동하던 이유다. VP는 "내 위치 + 미터 오프셋"이라 차분이 상쇄되어 방향만은
+// 우연히 맞아떨어졌고, 그래서 비행 자체는 그럴듯해 보였다.
+//
+// 대회 서버는 직교미터를 주므로(BT-Jegal에서 확인) 무조건 변환하면 서버에서 깨진다.
+// → 입력 범위로 판별한다. 판별은 **내 위치 기준으로 한 번만** 하고 모든 기체에
+//   동일 적용한다(틱 안에서 좌표계가 섞이지 않게).
+//
+// Z는 고도(양수=위)로 유지한다 — 기존 코드가 MyLocation_Cartesian.Z를 고도로 쓰고 있어
+// 여기서 NED(Down 양수)로 바꾸면 저고도 가드가 반대로 동작한다.
+// ─────────────────────────────────────────────────────────────────────────
+static bool LooksLikeLLA(const Vector3& p)
+{
+	// 위도 |X|<=90, 경도 |Y|<=180. 직교미터라면 교전공간상 이 범위에 들어오기 어렵다
+	// (원점 반경 90m 이내면 오판 가능하나, 그 경우 양측이 충돌 직전이라 무의미).
+	return std::fabs(p.X) <= 90.0 && std::fabs(p.Y) <= 180.0;
+}
+
 StickValue UCPPBehaviorTree::Step(PlaneInfo MyInfo, int NumofOtherPlane, PlaneInfo* OthersInfo, Vector3& VP, float& Throttle)
 {
+	// 대회 datum (LibMain의 값과 동일해야 한다)
+	const Vector3 DatumLLA(37.91455691666666, 128.18188127777776, 0.0);
+	const bool inputIsLLA = LooksLikeLLA(MyInfo.Location);
+
 	PlaneInfo Myinfo;
-	Myinfo.Location = MyInfo.Location;
+	Myinfo.Location = inputIsLLA ? LLAtoCartesian(MyInfo.Location, DatumLLA) : MyInfo.Location;
 	Myinfo.Rotation = EulerAngle(MyInfo.Rotation.Yaw, MyInfo.Rotation.Pitch, MyInfo.Rotation.Roll);
 	Myinfo.AngleAcceleration = MyInfo.AngleAcceleration;
 	Myinfo.Speed = MyInfo.Speed;
@@ -138,7 +174,10 @@ StickValue UCPPBehaviorTree::Step(PlaneInfo MyInfo, int NumofOtherPlane, PlaneIn
 	PlaneInfo others[4];
 	for (int i = 0; i < NumofOtherPlane; i++)
 	{
-		Vector3 Enemylocation_Cartesian = OthersInfo[i].Location;
+		// 내 위치로 판별한 좌표계를 동일 적용 (틱 안에서 좌표계가 섞이면 안 된다)
+		Vector3 Enemylocation_Cartesian = inputIsLLA
+			? LLAtoCartesian(OthersInfo[i].Location, DatumLLA)
+			: OthersInfo[i].Location;
 		others[i].Location = Enemylocation_Cartesian;
 		others[i].Rotation = EulerAngle(OthersInfo[i].Rotation.Yaw, OthersInfo[i].Rotation.Pitch, OthersInfo[i].Rotation.Roll);
 		others[i].Speed = OthersInfo[i].Speed;
@@ -153,7 +192,9 @@ StickValue UCPPBehaviorTree::Step(PlaneInfo MyInfo, int NumofOtherPlane, PlaneIn
 	BB->Enemy.clear();
 
 	//블랙보드에 내 정보(위치, 자세, 속력, 팀) 업데이트
-	BB->MyLocation_Cartesian = MyInfo.Location;
+	// ⚠️ 반드시 변환된 Myinfo(소문자 i)를 쓴다. 파라미터 MyInfo(대문자 I)는 원본 LLA다.
+	//    이름이 대소문자만 다른 두 변수가 공존해 실수하기 쉽다.
+	BB->MyLocation_Cartesian = Myinfo.Location;
 	BB->MyRotation_EDegree = EulerAngle(Myinfo.Rotation.Yaw, Myinfo.Rotation.Pitch, Myinfo.Rotation.Roll);
 	BB->MyAngleAcceleration = Myinfo.AngleAcceleration;
 	BB->MySpeed_MS = Myinfo.Speed;
@@ -287,6 +328,34 @@ Vector3 UCPPBehaviorTree::GetVP()
 const char* UCPPBehaviorTree::GetSelectedBehavior() const
 {
 	return BB->SelectedBehavior.c_str();
+}
+
+// (A-0) 진단용 스칼라 덤프. 순서는 헤더 주석 참조.
+// 성능 영향 없음 — 외부에서 호출할 때만 읽는다.
+int UCPPBehaviorTree::FillDebugScalars(double* out, int n) const
+{
+	if (out == nullptr || n <= 0 || BB == nullptr) return 0;
+
+	const double v[DEBUG_SCALAR_COUNT] = {
+		(double)BB->Distance,
+		(double)BB->Los_Degree,
+		(double)BB->Los_Degree_Target,
+		(double)BB->MyAngleOff_Degree,
+		(double)BB->MyAspectAngle_Degree,
+		(double)BB->RunningTime,
+		(double)BB->MySpeed_MS,
+		(double)BB->Throttle,
+		(double)BB->VP_Cartesian.X, (double)BB->VP_Cartesian.Y, (double)BB->VP_Cartesian.Z,
+		(double)BB->MyLocation_Cartesian.X, (double)BB->MyLocation_Cartesian.Y, (double)BB->MyLocation_Cartesian.Z,
+		(double)BB->TargetLocaion_Cartesian.X, (double)BB->TargetLocaion_Cartesian.Y, (double)BB->TargetLocaion_Cartesian.Z,
+		BB->EnemyInSight ? 1.0 : 0.0,
+		(double)BB->BehaviorHoldTicks,
+		(double)BB->HardTurnDwell,
+	};
+
+	const int count = (n < DEBUG_SCALAR_COUNT) ? n : DEBUG_SCALAR_COUNT;
+	for (int i = 0; i < count; ++i) out[i] = v[i];
+	return count;
 }
 
 

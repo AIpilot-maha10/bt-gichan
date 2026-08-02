@@ -12,6 +12,7 @@ using namespace std;
 // GetCurrentTaskName은 내부에서 호출되지 않으므로 명시적 /EXPORT로 export를 강제한다.
 // (정의가 extern "C"라 심볼명이 언맹글드 "GetCurrentTaskName"이므로 이 이름으로 해소됨)
 #pragma comment(linker, "/EXPORT:GetCurrentTaskName")
+#pragma comment(linker, "/EXPORT:GetDebugScalars")   // (A-0) 같은 이유로 강제 export
 
 #define MAX_ITEM 51
 #define MAX_OTHRES 3
@@ -164,6 +165,10 @@ extern "C"
     //현재 실행 중인 Task(전략) 이름 반환 — 모니터링/분석용
     __declspec(dllexport) const char* GetCurrentTaskName(int OwnerID);
 
+    //(A-0) BT 블랙보드 내부 스칼라 덤프 — 진단용. 채운 개수 반환.
+    //BT가 보는 거리/각도가 실제 기하와 어긋나는 원인을 좁히기 위한 창구.
+    __declspec(dllexport) int GetDebugScalars(int OwnerID, double* out, int n);
+
     __declspec(dllexport) void Reset();
     __declspec(dllexport) void RemoveBT(int OwnerID);
 
@@ -225,6 +230,16 @@ extern "C" const char* GetCurrentTaskName(int OwnerID)
         return it->second->GetSelectedBehavior();
     }
     return "";
+}
+
+extern "C" int GetDebugScalars(int OwnerID, double* out, int n)
+{
+    auto it = BTList.find(OwnerID);
+    if (it != BTList.end())
+    {
+        return it->second->FillDebugScalars(out, n);
+    }
+    return 0;
 }
 
 void Reset()

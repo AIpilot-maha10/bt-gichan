@@ -77,6 +77,23 @@ public:
 	void RunCPPBT(Vector3& VP, float& Throttle, bool& AimmingMode); //서비스 노드 역할, 디시전 트리
 
 	/*
+	(A-0) 진단용 — 블랙보드 내부 스칼라를 외부로 노출한다.
+
+	왜 필요한가: 하네스 측정에서 BT가 보는 거리/각도가 실제 기하와 어긋나는 것이
+	확인됐다(SnapShot이 실제 3,762m·ATA 98.8°에서 발동. 임계는 1,052m·40°).
+	배율이 일정하지 않아 단순 단위 버그가 아닌데, 내부값을 볼 수단이 없어 원인을 못 좁힌다.
+	이걸 안 만들면 재설계한 v7도 똑같이 깜깜이가 된다.
+
+	out에 아래 순서로 채우고 채운 개수를 반환한다. n이 작으면 그만큼만 채운다.
+	  0 Distance          1 Los_Degree(ATA)   2 Los_Degree_Target  3 MyAngleOff(HCA)
+	  4 MyAspectAngle     5 RunningTime       6 MySpeed_MS         7 Throttle
+	  8~10 VP_Cartesian   11~13 MyLocation    14~16 TargetLocation
+	  17 EnemyInSight     18 BehaviorHoldTicks 19 HardTurnDwell
+	*/
+	int FillDebugScalars(double* out, int n) const;
+	static const int DEBUG_SCALAR_COUNT = 20;
+
+	/*
 	비헤비어트리에서 생성된 VP를 향하여 비행기가 바라보도록 비행기가 움직이게 하는 스틱값을 생성하는 함수
 		MyInfo					: 내 비행기 정보 (위치 자세 속도 팀 정보등)
 		NumofOtherPlane			: 전장에서 내 비행기가 아닌 다른 비행기들의 개수

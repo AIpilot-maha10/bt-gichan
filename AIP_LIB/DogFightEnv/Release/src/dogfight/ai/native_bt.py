@@ -142,6 +142,11 @@ class AIPilot:
         if self._has_task_name:
             self.AIPilotDLL.GetCurrentTaskName.argtypes = [ct.c_int]
             self.AIPilotDLL.GetCurrentTaskName.restype = ct.c_char_p
+        # (A-0) BT 블랙보드 내부 스칼라 덤프 — 진단용
+        self._has_debug_scalars = hasattr(self.AIPilotDLL, "GetDebugScalars")
+        if self._has_debug_scalars:
+            self.AIPilotDLL.GetDebugScalars.argtypes = [ct.c_int, ct.POINTER(ct.c_double), ct.c_int]
+            self.AIPilotDLL.GetDebugScalars.restype = ct.c_int
 
     def _debug_log(self, message: str) -> None:
         if self.debug_enabled:
@@ -300,6 +305,31 @@ class AIPilot:
         if not raw:
             return ""
         return raw.decode("utf-8", errors="replace")
+
+    # (A-0) 진단용 스칼라 이름 — DLL의 FillDebugScalars 순서와 반드시 일치해야 한다
+    DEBUG_SCALAR_NAMES = (
+        "bt_distance", "bt_ata", "bt_enemy_ata", "bt_hca", "bt_aspect_nose",
+        "bt_running_time", "bt_speed_ms", "bt_throttle",
+        "bt_vp_x", "bt_vp_y", "bt_vp_z",
+        "bt_my_x", "bt_my_y", "bt_my_z",
+        "bt_tgt_x", "bt_tgt_y", "bt_tgt_z",
+        "bt_enemy_in_sight", "bt_hold_ticks", "bt_hardturn_dwell",
+    )
+
+    def GetDebugScalars(self, my_id) -> dict:
+        """BT가 **실제로 보고 있는 값**을 읽는다. 구버전 DLL이면 빈 dict.
+
+        하네스 측정에서 BT의 거리/각도가 실제 기하와 어긋나는 게 확인됐는데
+        내부를 볼 수단이 없어 원인을 못 좁혔다. 이 창구로 나란히 비교한다.
+        """
+        if not self._has_debug_scalars:
+            return {}
+        n = len(self.DEBUG_SCALAR_NAMES)
+        buf = (ct.c_double * n)()
+        got = self.AIPilotDLL.GetDebugScalars(int(my_id), buf, n)
+        if got <= 0:
+            return {}
+        return {self.DEBUG_SCALAR_NAMES[i]: float(buf[i]) for i in range(min(got, n))}
 
     def Reset(self):
         self.AIPilotDLL.Reset()

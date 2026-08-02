@@ -193,6 +193,8 @@ class MatchRunner:
                     "aspect_from_tail": W.aspect_from_tail_deg(geo, own, tgt),
                     "own_state": np.array(own, copy=True),
                     "tgt_state": np.array(tgt, copy=True),
+                    # (A-0) BT가 실제로 보고 있는 내부값. 구버전 DLL이면 빈 dict
+                    "bt": self._own_provider.last_debug,
                 })
 
             if terminated or truncated:
