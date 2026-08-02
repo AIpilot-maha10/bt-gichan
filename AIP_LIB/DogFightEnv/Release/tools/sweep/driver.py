@@ -59,15 +59,20 @@ def score(results) -> tuple[float, dict]:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--seeds", type=int, default=20)
+    ap.add_argument("--seeds", type=int, default=30)   # 20판은 순위가 뒤집힌다(아래 주석)
     ap.add_argument("--opponent", default="jegalmin")
     a = ap.parse_args()
 
-    # 첫 다차원 격자. 단일 상수는 EP13/EP15에서 국소최적임이 확인됐으므로
-    # **조합 효과**를 본다 (SnapShot 창 x 히스테리시스).
+    # ⚠️ 표본 하한: **최소 30판/변형**. 20판은 순위를 뒤집는다.
+    #   1차 3x3(20판): Hold45가 1위, Hold30(기준)은 5위로 나왔다
+    #   2차 1차원(30판): Hold30이 1위, shutout이 30->45->60->90에서 50->63->70->73%로 단조
+    #   즉 20판 랭킹은 노이즈였다. EP7(10판 3.8배 -> 75판 소멸)과 같은 함정.
+    #
+    # 확인된 최적값(변경 불필요):
+    #   SnapShotAtaDeg = 40  (EP13: 25/60 둘 다 악화)
+    #   HoldTicks      = 30  (위 2차 스윕)
     grid = {
-        "SnapShotAtaDeg": [30.0, 40.0, 50.0],
-        "HoldTicks": [20.0, 30.0, 45.0],
+        "HoldTicks": [30.0, 45.0, 60.0, 90.0],
     }
     keys = list(grid)
     combos = list(itertools.product(*(grid[k] for k in keys)))
