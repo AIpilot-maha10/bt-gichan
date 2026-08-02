@@ -24,9 +24,13 @@
 /AIP_LIB/DogFightEnv/Release/engine/
 /AIP_LIB/DogFightEnv/Release/logs/
 /AIP_LIB/DogFightEnv/Release/engagement_logs/
-/AIP_LIB/DogFightEnv/Release/scripts/
-/AIP_LIB/DogFightEnv/Release/experiments/
-/AIP_LIB/DogFightEnv/Release/student/
+
+# ---- ★ 우리 산출물이므로 추적한다 (2026-08-02 해제) ----
+#  student/     : RL 보상·관측·커리큘럼·제출설정 — CLAUDE.md "학생이 주로 수정할 파일"
+#  experiments/ : 실험 YAML (C 스윕·D 학습의 설정 원본)
+#  scripts/     : 실험 실행기 — 학습 재현에 필요
+#  tools/       : B 스파링 하네스 / C 파라미터 스윕 (신규)
+#  이 4개가 무시되면 A/C/D 작업물이 커밋되지 않는다.
 
 # =========================
 # Visual Studio / 빌드 산출물
@@ -77,6 +81,7 @@ __pycache__/
 *.py[cod]
 *$py.class
 .venv/
+.venv-rl/
 venv/
 env/
 ENV/
