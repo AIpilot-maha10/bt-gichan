@@ -252,6 +252,9 @@ NodeStatus Action::Task_Tactical::tick()
 	// EnemyTurnSign이 잡음이다. 잘못된 방향으로 2.5초를 쓰면 그대로 손해.
 	// → 다음 시도: 머지 후 0.5~1초 관찰하고 나서 방향을 확정한다.
 	const bool forceMergeTurn = false && (bb->MergeTurnTicks > 0);
+	// (EP12) 예선 스위트로도 재평가했으나 동일하게 기각:
+	//   WEZ 1.51->1.28s 개선5/악화5 p=1.000, shutout 15->18판
+	// 진단 셀(EP7)과 예선 스위트(EP12) 양쪽에서 효과가 없다. 확정 기각.
 
 	// 원거리 인터셉트용 예측점 (접근 단계 전용 — 종말 조준에는 사용 금지)
 	const float t_lead = clampf(dist / std::max(speed, 100.0f), 0.3f, 2.0f);
