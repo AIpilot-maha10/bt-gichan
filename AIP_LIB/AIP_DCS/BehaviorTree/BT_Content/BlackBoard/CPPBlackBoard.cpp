@@ -48,6 +48,12 @@ CPPBlackBoard::CPPBlackBoard()
 	IsOneCircle = 1;		//예선 실측 속도가 둘 다 350kt 이하라 1서클이 기본
 	FightPlanHold = 0;
 
+	PrevTargetForward = Vector3(0, 0, 0);
+	EnemyTurnSign = 0.0f;
+	PrevClosure = 0.0f;
+	MergeTurnTicks = 0;
+	MergeTurnSign = 0.0f;
+
 
 	
 }

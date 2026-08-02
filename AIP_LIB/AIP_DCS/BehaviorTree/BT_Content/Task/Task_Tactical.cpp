@@ -173,6 +173,51 @@ NodeStatus Action::Task_Tactical::tick()
 	// 적이 내 어느 쪽에 있나 (+1=오른쪽, -1=왼쪽) — LeadTurn 역전 방향 결정용
 	const float enemySide = ((float)bb->MyRightVector.dot(losDir) >= 0.0f) ? 1.0f : -1.0f;
 
+	// ── (v7 EP7) 적 회전방향 + 머지 감지 ────────────────────────────────
+	// §4.8.4.2.2: 1서클 = 두 기체가 **반대 회전방향**으로 돌아 원 하나를 공유.
+	//             2서클 = 같은 회전방향 -> 각자 원을 그림(레이트 싸움).
+	// EP6에서 속도 목표만 바꿨다가 실패했다. 진짜 분기는 **어느 쪽으로 도느냐**다.
+	//
+	// 적 회전방향: 기수벡터의 수평성분이 위에서 볼 때 어느 쪽으로 도는가.
+	//   cross(prev, cur).Z > 0 이면 반시계(좌선회), < 0 이면 시계(우선회)
+	{
+		const Vector3 pf = bb->PrevTargetForward;
+		const Vector3 cf = bb->TargetForwardVector;
+		if (std::fabs(pf.X) + std::fabs(pf.Y) > 1e-6)
+		{
+			const float crossZ = (float)(pf.X * cf.Y - pf.Y * cf.X);
+			// 잡음 억제: 아주 작은 변화는 무시하고 직전값을 유지한다
+			if (std::fabs(crossZ) > 1e-5f)
+				bb->EnemyTurnSign = (crossZ > 0.0f) ? -1.0f : 1.0f;   // +1 = 시계(우선회)
+		}
+		bb->PrevTargetForward = cf;
+	}
+
+	// 머지(최근접) 통과 감지: 닫힘속도가 +에서 -로 바뀌는 순간
+	const bool mergePassed = (bb->PrevClosure > 0.0f && closure <= 0.0f);
+	bb->PrevClosure = closure;
+
+	// 머지 직후 **중립 기하**에서만 선회방향을 강제한다.
+	// 공격/방어 국면(진단에서 이미 5~25초씩 쏘는 구간)은 건드리지 않는다.
+	const bool neutralMerge = mergePassed
+		&& dist < 2500.0f
+		&& los > 50.0f && enemyAta > 50.0f      // 서로 겨누지 못하는 중립
+		&& hca > 90.0f;                          // 마주 지나감
+	// ⚠️ 속도 하한 게이트 (EP7 1차 실측으로 추가)
+	// 교범의 "350kt 이하면 1서클"은 **선회반경을 쓸 수 있는 속도**를 전제한다.
+	// §4.8.4.2.3.1: "Below 250 knots, however, the turn radius opens back up again."
+	// 실측: beam_slow(CAS 162~201kt)에 강제했더니 WEZ 0.00s / shutout 10/10으로 완전 붕괴했다.
+	// 돌 힘이 없는데 최소반경 싸움을 걸면 멀어지기만 한다 -> 그땐 에너지부터 회복(§4.4).
+	const bool canFightRadius = (casKt >= ONE_CIRCLE_CAS_LO);
+	if (neutralMerge && bb->MergeTurnTicks <= 0 && bb->EnemyTurnSign != 0.0f && canFightRadius)
+	{
+		// 1서클을 원하면 적과 **반대** 회전방향, 2서클이면 같은 방향
+		bb->MergeTurnSign = (bb->IsOneCircle != 0) ? -bb->EnemyTurnSign : bb->EnemyTurnSign;
+		bb->MergeTurnTicks = 150;                // 2.5초. 회전방향을 확정짓는 데 필요한 최소치
+	}
+	if (bb->MergeTurnTicks > 0) bb->MergeTurnTicks -= 1;
+	const bool forceMergeTurn = (bb->MergeTurnTicks > 0);
+
 	// 원거리 인터셉트용 예측점 (접근 단계 전용 — 종말 조준에는 사용 금지)
 	const float t_lead = clampf(dist / std::max(speed, 100.0f), 0.3f, 2.0f);
 	const Vector3 predEnemy = tgtPos + enemyVel * t_lead;
@@ -222,6 +267,8 @@ NodeStatus Action::Task_Tactical::tick()
 		raw = "DefensiveBreak";   // 적이 내 꼬리에서 조준 중 = 진짜 위협
 	else if (inWezRange && noseOn)
 		raw = "SnapShot";         // (v5) 사거리내 기수근접 = 즉시 스냅샷 (아스펙트 무관)
+	else if (forceMergeTurn)
+		raw = "MergeTurn";        // (v7 EP7) 머지 직후 회전방향 확정 — 1서클/2서클을 실제로 만든다
 	else if (forceBreak && dist < 4000.0f)
 		raw = "LeadTurn";         // (v6 Phase2) 2서클 교착 -> 선회방향 역전으로 1서클 전환
 	else if (highAspectPass || overspeedMerge)
@@ -240,9 +287,9 @@ NodeStatus Action::Task_Tactical::tick()
 	// 나머지 기동 상태는 30틱 유지해 틱 단위 떨림 방지.
 	const std::string last = bb->SelectedBehavior;
 	const bool rawHard = (raw == "AltRecover" || raw == "DefensiveBreak" || raw == "GunAim"
-		|| raw == "LagEntry" || raw == "SnapShot" || raw == "LeadTurn");
+		|| raw == "LagEntry" || raw == "SnapShot" || raw == "LeadTurn" || raw == "MergeTurn");
 	const bool lastSoft = !(last == "AltRecover" || last == "DefensiveBreak" || last == "GunAim"
-		|| last == "LagEntry" || last == "SnapShot" || last == "LeadTurn"
+		|| last == "LagEntry" || last == "SnapShot" || last == "LeadTurn" || last == "MergeTurn"
 		|| last == "PreventLandCrash" || last == "None" || last == "Straight" || last == "");
 	std::string behavior;
 	if (rawHard)
@@ -352,6 +399,26 @@ NodeStatus Action::Task_Tactical::tick()
 		aiming = false;
 		maxDive = 10.0f;
 		throttle = CornerHoldThrottle(speed); // 코너속도로 최대 선회율
+	}
+	else if (behavior == "MergeTurn")
+	{
+		// (v7 EP7) 머지 직후, 정해진 **회전방향**으로 확실히 돌린다.
+		//
+		// 핵심: 여기서는 적 위치를 향하지 않는다. 적을 향해 돌면 양쪽이 서로 마주
+		// 돌아 결국 같은 회전방향이 되고, 그게 2서클(레이트 교착)이다.
+		// §4.8.4.2.2 "fighters turn in opposite directions at the merge"
+		//
+		// EP6 실패 교훈: 속도/하강각만 바꾸는 건 겉만 만지는 것. VP 방향을 바꿔야 한다.
+		Vector3 rightFlat = bb->MyRightVector;
+		rightFlat.Z = 0.0;
+		const float rLen = (float)std::sqrt(rightFlat.X * rightFlat.X + rightFlat.Y * rightFlat.Y);
+		if (rLen > 1e-3f) rightFlat = rightFlat * (1.0f / rLen);
+
+		vp = myPos + fwdFlat * 700.0f + rightFlat * (bb->MergeTurnSign * 1800.0f);
+		vp.Z = myPos.Z;          // 평면 유지 — 1서클은 반경 싸움이라 고도를 팔 이유가 없다
+		aiming = false;
+		maxDive = 12.0f;
+		throttle = FightThrottle(casKt, bb->IsOneCircle != 0);
 	}
 	else if (behavior == "HardTurn")
 	{
