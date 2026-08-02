@@ -300,8 +300,14 @@ NodeStatus Action::Task_Tactical::tick()
 		raw = "AltRecover";                                           // (v6) 900m로 조기화 (녹아웃 305m 대비)
 	else if (enemyAta < 25.0f && dist < 1400.0f && los > 80.0f)
 		raw = "DefensiveBreak";   // 적이 내 꼬리에서 조준 중 = 진짜 위협
-	else if (dist < 470.0f && closure > 40.0f && los < 90.0f)
-		raw = "GunRepo";          // (v7 EP10) 너무 붙었다 -> 거리 재설정. 아래 설명 참조
+	// (EP10/EP11 결론) GunRepo 발동을 껐다. 470m/800m 둘 다 WEZ가 나빠졌다.
+	//   EP10(470m): WEZ 0.85->0.81 악화24/개선17, 최소거리 변화 없음(180->178m)
+	//   EP11(800m): WEZ 0.85->0.56 악화33/개선11 p=0.001, shutout 34->44판
+	// 뒤로 빼면 사거리 내 체류는 비슷한데 **사격 기회 자체가 사라진다**.
+	// LOS 회전율 가설(200m에서 57°/s라 추적 불가)은 맞을 수 있으나,
+	// 붙지 않으면 아예 못 쏘므로 거리를 벌리는 방향은 답이 아니다.
+	else if (false)
+		raw = "GunRepo";
 	else if (inWezRange && noseOn)
 		raw = "SnapShot";         // (v5) 사거리내 기수근접 = 즉시 스냅샷 (아스펙트 무관)
 	else if (forceMergeTurn)
@@ -402,11 +408,20 @@ NodeStatus Action::Task_Tactical::tick()
 		const float eLen = (float)std::sqrt(eFwd.X * eFwd.X + eFwd.Y * eFwd.Y);
 		if (eLen > 1e-3f) eFwd = eFwd * (1.0f / eLen);
 
-		vp = tgtPos - eFwd * 700.0f;      // 적 꼬리 뒤 700m — 거리를 벌리며 각을 유지
-		vp.Z = myPos.Z + 150.0;           // 살짝 위로 (제트워시 회피 + 에너지 보존)
+		// (EP11) 470m 트리거는 너무 늦었다 — 최소거리가 전혀 안 변했다(180→178m).
+		// 물리적 이유가 있다: 교차속도 200 m/s 기준 LOS 회전율은
+		//    200m 거리 -> 57°/s,  900m 거리 -> 12.7°/s
+		// 우리 최대 선회율이 약 20°/s이므로 **200m에서는 원리적으로 추적이 불가능**하다.
+		// 사거리 내 최소 ATA가 5.44°에서 멈춘 건 제어 한계가 아니라 기하 문제였다.
+		// 교범의 Control Zone(762~1,372m)이 정확히 이 이유로 존재한다.
+		//
+		// -> 800m부터 개입해 **CZ 안쪽(약 800m)을 유지**한다. 크게 벌리지 않는다.
+		//    (너무 벌리면 사거리 밖으로 나가 WEZ 기회 자체가 사라진다)
+		vp = tgtPos - eFwd * 900.0f;      // 적 꼬리 뒤 900m — CZ 근처로 되돌린다
+		vp.Z = myPos.Z + 100.0;
 		aiming = false;
 		maxDive = 15.0f;
-		throttle = 0.15f;                 // idle에 가깝게 — 닫힘속도를 죽인다
+		throttle = 0.2f;                  // 닫힘속도를 죽이되 완전 idle은 아니게
 	}
 	else if (behavior == "SnapShot")
 	{
