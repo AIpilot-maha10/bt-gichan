@@ -38,11 +38,16 @@ from tools.sparring.scenarios import (  # noqa: E402
 
 DEFAULT_OUT = r"D:\aipilot-artifacts\sparring"
 
-# Day 1 실측: AIP_BASE_target은 Rule_forTraining.xml이 덮여 초기화 실패 + 원본도 Task_Empty뿐.
-# 실질 상대는 이 둘이다.
+# 실질 스파링 상대는 jegalmin / btjegal 둘뿐이다.
+# AIP_BASE_target: Rule_forTraining.xml이 우리 트리로 덮여 초기화가 실패하던 것을
+#   배포본 원본으로 복구했다(8/3). 이제 초기화는 되지만 원본 트리가 Task_Empty뿐이고
+#   BT.CPP Fallback 버그로 아무것도 틱하지 않아 **2.5초 만에 스스로 추락**한다.
+#   -> 스파링 상대가 아니라 스모크 타깃으로만 쓴다.
 OPPONENTS = {
     "jegalmin": SideSpec("AIP_jegalmin.dll", None, "jegalmin"),
     "btjegal": SideSpec("AIP_BTJegal.dll", None, "btjegal"),
+    # 스모크 타깃 (2.5초 내 자멸). 하네스 동작 확인용
+    "base": SideSpec("AIP_BASE_target.dll", None, "base"),
 }
 
 

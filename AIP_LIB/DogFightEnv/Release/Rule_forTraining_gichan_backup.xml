@@ -1,0 +1,13 @@
+<root main_tree_to_execute="MainTree">
+  <BehaviorTree ID="MainTree">
+    <Sequence>
+      <SelectTarget name="SelectTarget" BB="{BB}"/>
+      <DirectionVectorUpdate name="DirectionVectorUpdate" BB="{BB}"/>
+      <DistanceUpdate name="DistanceUpdate" BB="{BB}"/>
+      <CheckSight name="CheckSight" BB="{BB}"/>
+      <AngleOffUpdate name="AngleOffUpdate" BB="{BB}"/>
+      <AspectAngleUpdate name="AspectAngleUpdate" BB="{BB}"/>
+      <Task_Tactical name="Tactical" BB="{BB}"/>
+    </Sequence>
+  </BehaviorTree>
+</root>
