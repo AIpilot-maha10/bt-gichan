@@ -91,10 +91,20 @@ JSBSim 비행역학 시뮬레이터 위에서 **BT(Behavior Tree)** 와 **RL(강
 | 서로 원만 그리는 교착 | AETCTTP §4.8.4 (TCX/Ease) | ✅ |
 | 방어 국면에서 계속 피격 | AETCTTP §4.7 (DBFM) | ✅ |
 | 판단 순서 혼란 | AETCTTP §4.5 (크로스체크) | ✅ |
-| 사격 기회 놓침 / 과조준 | AETCTTP §4.6 (OBFM) | ⚠️ 부분 |
-| 수직기동·요요·에너지 세부 | Shaw *Fighter Combat* | ⬜ 미조사 |
+| 사격 기회 놓침 / 과조준 / CZ 진입 실패 | AETCTTP §4.6 (OBFM) | ✅ (8/2) |
+| **만성 저속·에너지 고갈** | **AETCTTP §4.4 (Power/Energy)** | ✅ (8/2) |
+| 수직기동·요요 세부 설계 | Shaw *Fighter Combat* | ⬜ 미조사 |
 | 1v1 넘는 기동 조합 | AETCTTP §4.9 (ACM) | ⬜ 미조사 |
 | 저속·고AOA 조종성 | F-16 비행교범 | ⬜ 미조사 |
+
+### ⚡ 에너지 규율 (§4.4·§4.6 — 8/2 조사, 최우선 적용)
+
+- **선회는 최대 G가 아니라 "airspeed sustaining feel"** — 5G로 잡고 속도가 유지되는 수준으로 낮춘다 (§4.6.3.1.5)
+- **풀스로틀+최대당김인데 LOSR 진전이 없으면 → 멈추고 에너지 회복**(repo). "adequate radial G is not available" (§4.6.3.1.11)
+- **음의 Ps는 강하로 갚는다** — "must descend (change potential to kinetic energy)" (§4.4.1.1). 고도 여유가 있으면 하강각 클램프를 풀 것
+- **스로틀은 속도가 아니라 버핏(선회 강도)의 함수** — smooth/light→IDLE, light-mod→MIL, mod-heavy→MAX (§4.6.3.1.9.2)
+- **Ease 종료는 타이머가 아니라 후방 LOSR 증가** (§4.6.3.1.8)
+- **바닥 전환 10° 규칙** — 하강각 10°당 305m 위에서 전환 시작 (§4.6.3.1.12.4). 바닥 근처에선 G가 아니라 속도를 유지
 
 ---
 
