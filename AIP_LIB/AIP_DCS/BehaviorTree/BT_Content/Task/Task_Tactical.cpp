@@ -4,9 +4,39 @@
 #include <cmath>
 #include <string>
 
+// ── (C 트랙) XML 입력 포트 ────────────────────────────────────────────────
+// 전술 상수를 XML에서 바꿀 수 있게 노출한다. **재빌드 없이 스윕**하기 위한 것.
+//
+// 왜 필요한가: EP13/EP15에서 단일 상수를 하나씩 재빌드하며 스윕했는데,
+// 변형 하나당 빌드 1.5분이 들고 스크립트가 마지막 변형 DLL을 남기는 사고도 있었다.
+// 다차원 조합을 보려면 XML만 갈아끼우는 방식이 필요하다.
+//
+// 주의 (vendored BehaviorTree.CPP v3의 함정):
+//  · `getInput<float>`는 **빈 Optional을 반환**한다(convertFromString에 float 특수화 없음).
+//    반드시 double/int를 쓸 것.
+//  · XML에 선언 안 된 속성을 쓰면 RuntimeError -> extern "C" 경계를 넘어 하드 크래시.
+//  · XML에서 생략하면 3-arg InputPort의 기본값이 주입되므로 **기존 XML 그대로 동작**한다.
+static double dport(const BT::TreeNode& n, const char* key, double defv)
+{
+	auto v = n.getInput<double>(key);
+	return (v && std::isfinite(v.value())) ? v.value() : defv;
+}
+
 PortsList Action::Task_Tactical::providedPorts()
 {
-	return { InputPort<CPPBlackBoard*>("BB") };
+	return {
+		InputPort<CPPBlackBoard*>("BB"),
+		// 기본값 = 현재 코드값. 바꾸지 않으면 동작이 완전히 동일해야 한다(검증 조건).
+		InputPort<double>("SnapShotAtaDeg",   40.0,   "SnapShot 진입 ATA (EP13에서 40이 최적 확인)"),
+		InputPort<double>("SnapShotRangeMul",  1.15,  "SnapShot 사거리 배수 (x WEZ rMax)"),
+		InputPort<double>("GunAimAtaDeg",     22.0,   "GunAim 진입 ATA"),
+		InputPort<double>("GunAimRangeMul",    1.5,   "GunAim 사거리 배수"),
+		InputPort<double>("HardTurnAtaDeg",   45.0,   "HardTurn 진입 ATA 하한"),
+		InputPort<double>("InterceptRangeM", 3500.0,  "이 거리 이상이면 Intercept"),
+		InputPort<double>("HoldTicks",        30.0,   "soft 상태 히스테리시스 틱 (EP15: 12는 악화)"),
+		InputPort<double>("AltRecoverM",     900.0,   "이 고도 미만이면 AltRecover (녹아웃 305m)"),
+		InputPort<double>("DefBreakRangeM",  1400.0,  "DefensiveBreak 발동 거리"),
+	};
 }
 
 static float clampf(float v, float lo, float hi)
@@ -136,6 +166,17 @@ NodeStatus Action::Task_Tactical::tick()
 		bb->Throttle = 1.0f;
 		return NodeStatus::SUCCESS;
 	}
+
+	// (C 트랙) 포트는 여기서 한 번에 읽는다. 분기 안에서 읽으면 매 틱 map 조회가 반복된다.
+	const float P_SnapAta   = (float)dport(*this, "SnapShotAtaDeg",   40.0);
+	const float P_SnapMul   = (float)dport(*this, "SnapShotRangeMul",  1.15);
+	const float P_GunAta    = (float)dport(*this, "GunAimAtaDeg",     22.0);
+	const float P_GunMul    = (float)dport(*this, "GunAimRangeMul",    1.5);
+	const float P_HardAta   = (float)dport(*this, "HardTurnAtaDeg",   45.0);
+	const float P_InterceptM= (float)dport(*this, "InterceptRangeM", 3500.0);
+	const int   P_HoldTicks = (int)  dport(*this, "HoldTicks",        30.0);
+	const float P_AltRecM   = (float)dport(*this, "AltRecoverM",     900.0);
+	const float P_DefBreakM = (float)dport(*this, "DefBreakRangeM",  1400.0);
 
 	const float alt = (float)myPos.Z;
 	const float dist = bb->Distance;
@@ -271,8 +312,8 @@ NodeStatus Action::Task_Tactical::tick()
 	// - 2서클 원그리기 교착(jegalmin전): SnapShot 신설 — WEZ는 아스펙트 무관,
 	//   기수만 사거리내 적에 얹히면 데미지. 꼬리 안 잡아도 교차 순간 쏜다.
 	// - 90° 고아스펙트 패스: LagEntry를 교차 패스까지 확장 (오버슈트 방지)
-	const bool inWezRange   = dist < wez.rMax * 1.15f;                 // 사거리(+여유) 안
-	const bool noseOn       = los < 40.0f;                             // 기수가 적에 근접
+	const bool inWezRange   = dist < wez.rMax * P_SnapMul;                 // 사거리(+여유) 안
+	const bool noseOn       = los < P_SnapAta;                             // 기수가 적에 근접
 	const bool highAspectPass = dist < 2500.0f && closure > 150.0f     // 적이 90°로 가로지름
 		&& enemyAta > 55.0f && enemyAta < 130.0f && los > 45.0f;
 	const bool overspeedMerge = dist < 1800.0f && closure > 220.0f     // 과속 정면 접근
@@ -299,9 +340,9 @@ NodeStatus Action::Task_Tactical::tick()
 	}
 
 	std::string raw;
-	if (alt < 900.0f)
+	if (alt < P_AltRecM)
 		raw = "AltRecover";                                           // (v6) 900m로 조기화 (녹아웃 305m 대비)
-	else if (enemyAta < 25.0f && dist < 1400.0f && los > 80.0f)
+	else if (enemyAta < 25.0f && dist < P_DefBreakM && los > 80.0f)
 		raw = "DefensiveBreak";   // 적이 내 꼬리에서 조준 중 = 진짜 위협
 	// (EP10/EP11 결론) GunRepo 발동을 껐다. 470m/800m 둘 다 WEZ가 나빠졌다.
 	//   EP10(470m): WEZ 0.85->0.81 악화24/개선17, 최소거리 변화 없음(180->178m)
@@ -319,11 +360,11 @@ NodeStatus Action::Task_Tactical::tick()
 		raw = "LeadTurn";         // (v6 Phase2) 2서클 교착 -> 선회방향 역전으로 1서클 전환
 	else if (highAspectPass || overspeedMerge)
 		raw = "LagEntry";         // (v5) 과속 관통 + 90° 고아스펙트 패스 -> 지연추적
-	else if (dist < wez.rMax * 1.5f && los < 22.0f)
+	else if (dist < wez.rMax * P_GunMul && los < P_GunAta)
 		raw = "GunAim";           // 사거리 근처 정밀 추적 (SnapShot 밖의 좁은 창)
-	else if (los > 45.0f && dist < 3500.0f)
+	else if (los > P_HardAta && dist < P_InterceptM)
 		raw = "HardTurn";         // 기수부터 적에게 (머지 후 재교전 포함)
-	else if (dist >= 3500.0f)
+	else if (dist >= P_InterceptM)
 		raw = "Intercept";        // 원거리: 풀리드 인터셉트로 거리 압축
 	else
 		raw = "LeadPursuit";      // 중거리 22~45도: 리드 추적으로 각도 압축
@@ -351,7 +392,7 @@ NodeStatus Action::Task_Tactical::tick()
 	else
 	{
 		behavior = raw;
-		bb->BehaviorHoldTicks = 30;
+		bb->BehaviorHoldTicks = P_HoldTicks;
 	}
 
 	// (v6 Phase1) HardTurn 지속 카운터 갱신 — 교착 감지용.
