@@ -153,4 +153,10 @@ public:
 	int HardTurnDwell;										//(v6 Phase1) HardTurn 연속 지속 틱 — 레이트 교착 감지용
 	int BreakHoldTicks;										//(v6 Phase1) BreakManeuver 최소 유지 틱
 
+	//(v7) 1서클/2서클 판단 — AETCTTP §4.8.4.2.4.2.2
+	//대회 서버는 9개 값만 주므로 CAS를 고도로 추정한다. 교범 임계값이 전부 CAS 기준이라 필수.
+	float MyCas_Kt;											//추정 CAS (knot). TAS × √(ρ(alt)/ρ₀)
+	int   IsOneCircle;										//1=1서클(최소반경) 0=2서클(레이트)
+	int   FightPlanHold;									//판단 유지 틱 — 교범 "우유부단이 최악"
+
 };

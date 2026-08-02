@@ -39,11 +39,61 @@ static WezWindow GetWez(double runningTime)
 
 // 코너속도 유지 스로틀: F-16 최대 선회율은 대략 185~230 m/s 부근.
 // 빠르면 감속(선회반경 축소), 느리면 가속(에너지 회복).
+// ⚠️ (v7) TAS 기준이라 고도에 따라 오차가 커진다. 신규 로직은 아래 CAS 기반을 쓴다.
 static float CornerHoldThrottle(float speedMs)
 {
 	if (speedMs > 230.0f) return 0.25f;
 	if (speedMs < 185.0f) return 1.0f;
 	return 0.55f;
+}
+
+// ── (v7) CAS 추정 ─────────────────────────────────────────────────────────
+// 교범의 속도 임계값(350kt, 380~420kt, 250kt ...)은 전부 **CAS 기준**인데
+// 우리가 받는 건 TAS다. 대회 서버는 9개 값만 주므로 고도로 밀도비를 추정한다.
+//   CAS ≈ TAS × √(ρ(alt)/ρ₀),  ISA: T=288.15-0.0065h, p=p₀(T/T₀)^5.2559, ρ=p/(RT)
+// 예선 고도 15,000ft(4,572m)에서 계수 ≈ 0.7932 (실측 로그로 검증)
+static float TasToCasFactor(float altM)
+{
+	const float T = 288.15f - 0.0065f * altM;
+	if (T <= 1.0f) return 1.0f;
+	const float p = 101325.0f * std::pow(T / 288.15f, 5.2559f);
+	const float rho = p / (287.05f * T);
+	return std::sqrt(rho / 1.225f);
+}
+
+static const float MS_TO_KT = 1.0f / 0.51444f;
+
+// ── (v7) 1서클 / 2서클 ────────────────────────────────────────────────────
+// AETCTTP §4.8.4.2.4.2.2:
+//   "At 350 knots or less, consider forcing a one-circle, min radius fight.
+//    If >350 knots ... consider forcing a two-circle fight."
+//   "the last fighter to turn sets the fight ... Do not be indecisive."
+//
+// 예선 실측 속도는 CAS 309kt / 183kt로 **둘 다 1서클이 정답**인데,
+// v6는 HardTurn 74~79%로 사실상 2서클(레이트)을 하고 있었다. 빔 WEZ 0.39초의 의심 원인.
+static const float ONE_CIRCLE_CAS_KT = 350.0f;
+static const int   FIGHT_PLAN_HOLD_TICKS = 120;   // 2초. 우유부단 방지
+
+// 1서클 최소반경 구간 (§4.8.4.2.3.1)
+//   "From 350 knots to approximately 250 knots the turn radius remains about the same.
+//    Below 250 knots, however, the turn radius opens back up again."
+static const float ONE_CIRCLE_CAS_LO = 260.0f;    // 하한 방어(250 + 여유)
+// 2서클 지속선회율 구간 (§4.8.4.1.3)
+static const float TWO_CIRCLE_CAS_LO = 380.0f;
+static const float TWO_CIRCLE_CAS_HI = 430.0f;
+
+// (v7 시도1 되돌림) 아직 미사용 — 선회방향 구현 후 다시 쓴다
+static float FightThrottle(float casKt, bool oneCircle)
+{
+	if (oneCircle)
+	{
+		if (casKt > ONE_CIRCLE_CAS_KT) return 0.15f;   // 과속 -> 감속해 반경을 줄인다
+		if (casKt < ONE_CIRCLE_CAS_LO) return 1.0f;    // 250kt 미만은 반경이 다시 커진다
+		return 0.55f;                                   // 최적 반경 구간 유지
+	}
+	if (casKt > TWO_CIRCLE_CAS_HI) return 0.35f;
+	if (casKt < TWO_CIRCLE_CAS_LO) return 1.0f;
+	return 0.75f;
 }
 
 NodeStatus Action::Task_Tactical::tick()
@@ -70,6 +120,23 @@ NodeStatus Action::Task_Tactical::tick()
 	const float alt = (float)myPos.Z;
 	const float dist = bb->Distance;
 	const float los = bb->Los_Degree;          // 내 기수 -> 적 시선각 (=ATA)
+
+	// ── (v7) CAS 추정 + 1서클/2서클 판단 ────────────────────────────────
+	// 교범 임계값이 전부 CAS 기준이라 TAS를 그대로 쓰면 고도에 따라 어긋난다.
+	const float casKt = bb->MySpeed_MS * TasToCasFactor(alt) * MS_TO_KT;
+	bb->MyCas_Kt = casKt;
+	{
+		// 판단은 유지한다 — §4.8.4.2.4.2.2 "Do not be indecisive."
+		// 임계값 근처에서 매 틱 뒤집히면 어느 쪽 싸움도 못 한다.
+		const int wantOneCircle = (casKt <= ONE_CIRCLE_CAS_KT) ? 1 : 0;
+		if (wantOneCircle != bb->IsOneCircle)
+		{
+			if (bb->FightPlanHold > 0) bb->FightPlanHold -= 1;
+			else { bb->IsOneCircle = wantOneCircle; bb->FightPlanHold = FIGHT_PLAN_HOLD_TICKS; }
+		}
+		else bb->FightPlanHold = FIGHT_PLAN_HOLD_TICKS;
+	}
+	const bool oneCircle = (bb->IsOneCircle != 0);
 	const float speed = bb->MySpeed_MS;
 	const WezWindow wez = GetWez(bb->RunningTime);
 
@@ -294,6 +361,20 @@ NodeStatus Action::Task_Tactical::tick()
 		aiming = true;
 		maxDive = 25.0f;
 		throttle = CornerHoldThrottle(speed);
+
+		// ⚠️ (v7 시도 1 — 되돌림 2026-08-03)
+		// 여기서 1서클/2서클에 따라 maxDive와 스로틀 목표만 바꿔봤다.
+		// 페어 비교(30시드): WEZ p=1.000(개선7/악화8), shutout 13→16판,
+		// 최저고도 4,135→3,596m(p=0.057). **개선 없음 + 안전 악화**라 되돌렸다.
+		//
+		// 원인: 1서클은 **속도 관리가 아니라 선회 방향의 문제**다(§4.8.4.2.2 —
+		// "fighters turn in opposite directions at the merge, but both ground tracks
+		//  in the same direction"). `vp = tgtPos`는 적을 향해 돌 뿐 방향을 고르지 않아서
+		// 무엇을 바꾸든 여전히 같은 싸움을 한다. 속도 목표만 손대는 건 겉만 만진 것.
+		//
+		// 제대로 하려면: 머지 시점 감지 → 적 선회 방향 판별(§4.8.3.3) →
+		// 반대로 돌기 → 리드턴으로 동체 정렬. 그게 다음 작업이다.
+		// CAS 추정(bb->MyCas_Kt)과 판정(bb->IsOneCircle)은 계측용으로 남겨둔다.
 	}
 	else if (behavior == "Intercept")
 	{

@@ -89,9 +89,10 @@ public:
 	  4 MyAspectAngle     5 RunningTime       6 MySpeed_MS         7 Throttle
 	  8~10 VP_Cartesian   11~13 MyLocation    14~16 TargetLocation
 	  17 EnemyInSight     18 BehaviorHoldTicks 19 HardTurnDwell
+	  20 MyCas_Kt         21 IsOneCircle
 	*/
 	int FillDebugScalars(double* out, int n) const;
-	static const int DEBUG_SCALAR_COUNT = 20;
+	static const int DEBUG_SCALAR_COUNT = 22;
 
 	/*
 	비헤비어트리에서 생성된 VP를 향하여 비행기가 바라보도록 비행기가 움직이게 하는 스틱값을 생성하는 함수

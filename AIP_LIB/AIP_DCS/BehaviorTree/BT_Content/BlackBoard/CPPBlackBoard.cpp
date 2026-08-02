@@ -44,6 +44,10 @@ CPPBlackBoard::CPPBlackBoard()
 	HardTurnDwell = 0;
 	BreakHoldTicks = 0;
 
+	MyCas_Kt = 0.0f;
+	IsOneCircle = 1;		//예선 실측 속도가 둘 다 350kt 이하라 1서클이 기본
+	FightPlanHold = 0;
+
 
 	
 }

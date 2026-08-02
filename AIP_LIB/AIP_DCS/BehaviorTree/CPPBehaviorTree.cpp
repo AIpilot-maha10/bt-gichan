@@ -351,6 +351,8 @@ int UCPPBehaviorTree::FillDebugScalars(double* out, int n) const
 		BB->EnemyInSight ? 1.0 : 0.0,
 		(double)BB->BehaviorHoldTicks,
 		(double)BB->HardTurnDwell,
+		(double)BB->MyCas_Kt,			// (v7) 추정 CAS
+		(double)BB->IsOneCircle,		// (v7) 1=1서클 0=2서클
 	};
 
 	const int count = (n < DEBUG_SCALAR_COUNT) ? n : DEBUG_SCALAR_COUNT;
