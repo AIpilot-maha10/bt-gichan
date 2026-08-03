@@ -205,7 +205,7 @@ def report(tag: str, raw: list[dict]):
 
 
 print(f"리드턴 타이밍 진단 — 첫 머지 기준, {N}판씩 (시드 {SEED_BASE}~)")
-print(f"당김 판정: |Nz| >= {PULL_G}G가 {PULL_HOLD}틱({PULL_HOLD*DT:.1f}s) 지속")
+print(f"당김 판정: 머지 직전 마지막으로 |Nz|<{EASE_G}G였다가 {PULL_G}G를 넘는 시점")
 for dll, tag in (("AIP_BTJegal.dll", "vs btjegal (이기는 상대)"),
                  ("AIP_jegalmin.dll", "vs jegalmin (못 이기는 상대)")):
     report(tag, run(dll, tag))
