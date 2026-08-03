@@ -57,13 +57,24 @@ namespace Action
 			//   (교범 §4.2.3: 에너지는 공격적 이익에 쓴다).
 			//   예선 IC는 양측 고도·속도가 정확히 같아 Es차 ~= 0 -> 열세(2)로 잡힌다.
 			const float  LATCH_ES_M = 500.0f;     // 비에너지 우위 문턱(미터)
+			const float  LATCH_AFT_DEG = 60.0f;   // (EP35) 이보다 작으면 적 꼬리 쪽
+			const float  LATCH_ATA_DEG = 45.0f;   // (EP35) 이보다 작으면 조준 중
 			if (bb->OpeningLatch == 0 && bb->RunningTime >= LATCH_AT_SEC)
 			{
 				const float dz = (float)(bb->MyLocation_Cartesian.Z
 					- bb->TargetLocaion_Cartesian.Z);
 				const bool aheadOnAlt = (dz > LATCH_ALT_M);
 				const bool aheadOnEnergy = (bb->EnergyAdvantage_M > LATCH_ES_M);
-				bb->OpeningLatch = (aheadOnAlt || aheadOnEnergy) ? 1 : 2;
+				// (EP35) **위치 우위**(퍼치)도 래치한다.
+				//   off_outside_tc(6K 퍼치)는 고도도 속도도 같고 **위치**로 우위를
+				//   시작하므로 EP33/EP34가 못 잡았다(2.20s vs v7.1 9.70s).
+				//   교범 기준 AA가 작다 = 내가 적 꼬리 쪽에 있다, ATA가 작다 = 조준 중.
+				//   둘 다면 이미 공격 위치다 -> 환수가 아니라 사용할 국면이다.
+				//   예선은 개전 시 ATA 91도 빔 패스라 성립하지 않는다.
+				const bool aheadOnPosition =
+					(bb->AspectFromTail_Deg < LATCH_AFT_DEG && bb->Los_Degree < LATCH_ATA_DEG);
+				bb->OpeningLatch =
+					(aheadOnAlt || aheadOnEnergy || aheadOnPosition) ? 1 : 2;
 			}
 		}
 
