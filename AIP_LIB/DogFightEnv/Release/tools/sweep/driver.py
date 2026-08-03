@@ -82,14 +82,19 @@ def main() -> int:
     #   예) Snap1.35/Hard55 평균 5.38s(3.6배)인데 shutout 63% vs 기준 50%
     #   -> 점수식이 p20과 shutout에 가중치를 두는 이유다.
     #
-    # 다음 후보 (아직 미탐색): GunAimRangeMul, InterceptRangeM, AltRecoverM, DefBreakRangeM
+    #   InterceptRangeM   2800 / [3500] / 4200 -> 3500 최적 (봉우리 뚜렷)
+    #
+    # ⚠️ 예선에서 **효과가 전혀 없는** 포트 2개 (9변형 전부 동일 결과):
+    #   AltRecoverM    600/900/1200  - 예선 최저고도가 1,936m라 도달 자체를 안 한다
+    #   DefBreakRangeM 1000/1400/1800 - DefensiveBreak가 0% 발동(피격 0.05s = 위협 없음)
+    #   -> 예선 기준으로는 죽은 상수다. 다시 스윕하지 말 것.
+    #      (저고도/방어 시나리오에서는 의미가 있을 수 있다)
     # 5차(마지막): 남은 두 상수.
     # AltRecoverM은 성격이 다르다 - 안전 여유를 실전 공간으로 바꾸는 시도다.
     # 녹아웃이 305m인데 900m에서 회복을 시작하면 595m를 안 쓰는 셈이다.
     # 낮추면 싸울 고도가 늘지만 추락 위험이 오른다 -> 점수식의 추락 -300이 잡아준다.
     grid = {
-        "AltRecoverM":    [600.0, 900.0, 1200.0],
-        "DefBreakRangeM": [1000.0, 1400.0, 1800.0],
+        "GunAimRangeMul": [1.3, 1.5, 1.8],
     }
     keys = list(grid)
     combos = list(itertools.product(*(grid[k] for k in keys)))
