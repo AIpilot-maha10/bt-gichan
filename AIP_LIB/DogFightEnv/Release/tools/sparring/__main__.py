@@ -56,9 +56,14 @@ OPPONENTS = {
     "btjegal": SideSpec("AIP_BTJegal.dll", None, "btjegal"),
     # 자기 계열 — 성향이 달라 과적합 탐지에 쓴다
     "v6": SideSpec("AIP_gichan_v6.dll", LEGACY_XML, "gichan_v6"),
-    "coordfix": SideSpec("AIP_gichan_coordfix.dll", LEGACY_XML, "coordfix"),
     "v1": SideSpec("AIP_gichan_v1.dll", LEGACY_XML, "gichan_v1"),
     "v71": SideSpec("AIP_gichan_v71.dll", None, "gichan_v71"),
+    # ⚠️ coordfix는 v71과 **행동이 완전히 동일**하다 (4개 시드에서 틱·체력 1e-12 일치).
+    #   A-0 좌표수정 이후 v7.1까지의 EP가 전부 기각되거나 죽은 코드이기 때문이다:
+    #   EP6의 IsOneCircle은 차단된 MergeTurn 분기에서만 쓰여 실질 no-op이고
+    #   EP8~EP21은 전부 기각/차단됐다.
+    #   -> 로스터에 넣으면 같은 상대를 두 번 세는 셈이라 제외한다.
+    "coordfix": SideSpec("AIP_gichan_coordfix.dll", LEGACY_XML, "coordfix"),
     # ⚠️ 상대로 무의미 — 양쪽 0승/적체력 1.000. 하네스 동작 확인용으로만.
     #   AIP_BASE_target은 원본 트리가 Task_Empty뿐이라 2.5초 만에 자멸한다.
     "base": SideSpec("AIP_BASE.dll", None, "base"),
@@ -66,7 +71,7 @@ OPPONENTS = {
 }
 
 # 판정용 기본 로스터 (baseline/compare가 인자 없이 쓰는 값)
-DEFAULT_ROSTER = "jegalmin,btjegal,v6,coordfix,v71"
+DEFAULT_ROSTER = "jegalmin,btjegal,v6,v1,v71"
 
 
 def _run(own: SideSpec, opp: SideSpec, seeds: list[int], secs: float) -> list[MatchResult]:
