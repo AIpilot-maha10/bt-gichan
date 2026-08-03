@@ -56,6 +56,10 @@ MY_REWARD_CONFIG = {
     # 교전
     "damage_dealt_scale": 300.0,
     "damage_recv_scale": -450.0,  # 피격이 가해보다 비싸다 (§4.7)
+    # ⚠️ 내장 커리큘럼·training_record.py가 `damage_scale` 키를 읽는다
+    #    (training_record.py:123). 없으면 학습기록 저장이 실패한다(경고만 뜨고 진행은 됨).
+    #    우리는 가해/피격을 분리해 쓰므로 여기엔 가해 쪽 값을 호환용으로 둔다.
+    "damage_scale": 300.0,
 
     # shaping
     "ata_scale": 0.10,           # 각도가 병목 — 가장 큰 shaping

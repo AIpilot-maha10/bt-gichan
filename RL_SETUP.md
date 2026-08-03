@@ -57,6 +57,43 @@ GPU  NVIDIA GeForce RTX 4060 Ti  VRAM 8.0 GB  (드라이버 591.86)
 - 산출물은 **D드라이브로** (`artifacts_dir`를 `D:\aipilot-artifacts\rl\...`)
 - `--num-env-runners 4` (6c12t, JSBSim은 CPU 바운드. RAM 여유 고려)
 
+## ✅ 파이프라인 스모크 통과 (D-1+D-2+D-3 연결 확인)
+
+```
+python train_curriculum.py --algorithm ppo --observation-mode tactical16   --reward-module student.my_reward --stages-module <스모크모듈>   --num-env-runners 1 --output-name smoke --output-tag t1
+```
+
+2반복 완료, 번들 저장, `=== Curriculum training completed ===`.
+보상 모듈·커리큘럼 모듈·`env_overrides`(상대 DLL 교체) 모두 정상 작동.
+
+### 스모크에서 발견한 문제 2건
+
+**① `damage_scale` 키 누락 → 학습기록 저장 실패(경고)**
+`training_record.py:123`이 `reward_summary['damage_scale']`을 읽는다.
+우리는 가해/피격을 분리(`damage_dealt_scale`/`damage_recv_scale`)했으므로
+호환용 `damage_scale` 키를 추가했다. **수정 완료.**
+
+**② 산출물이 C드라이브에 저장된다 — `artifacts_dir`로 못 옮긴다**
+
+`train_curriculum.py:564`가 하드코딩돼 있다:
+```python
+self.curriculum_dir = ROOT / "artifacts" / "curriculum" / output_name / output_tag
+```
+`ROOT`는 `Release/`(C드라이브)이고 출력 루트를 바꾸는 CLI 인자가 없다.
+`env_overrides["artifacts_dir"]`는 **env 로그에만** 적용되고 번들·체크포인트에는 안 먹는다.
+
+| | 실제 저장 위치 |
+|---|---|
+| 번들·체크포인트·training_log | `Release/artifacts/curriculum/...` (**C드라이브**) |
+| env 로그 | `artifacts_dir` 지정값 (D드라이브) |
+
+**대응**: 스모크 2반복이 296KB였다. 본 캠페인(1,750반복)은 규모가 다르므로
+**학습 시작 후 C드라이브 여유를 확인**하고, 필요하면
+`Release/artifacts/curriculum`을 D로 옮긴 뒤 정션을 걸거나 주기적으로 이동한다.
+(계획은 정션을 "경로가 숨어 디버깅이 어렵다"며 비권장 — 먼저 실제 증가율을 재는 게 낫다)
+
+⚠️ `train_curriculum.py` 자체를 고치는 건 배포본 수정이라 신중해야 한다.
+
 ## 되돌리기
 
 `.venv-rl` 폴더 삭제. 시스템 환경은 전혀 건드리지 않았다.
