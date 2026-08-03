@@ -71,8 +71,20 @@ def main() -> int:
     # 확인된 최적값(변경 불필요):
     #   SnapShotAtaDeg = 40  (EP13: 25/60 둘 다 악화)
     #   HoldTicks      = 30  (위 2차 스윕)
+    # ── 스윕 결과 요약 (전부 30판/변형, vs jegalmin) ──────────────────
+    # 지금까지 **네 상수 모두 현재값이 최적**이었다. 기준 조합 score -24.25.
+    #   SnapShotAtaDeg    25 / [40] / 60      -> 40 최적 (EP13)
+    #   HoldTicks         20 / [30] / 45/60/90 -> 30 최적
+    #   SnapShotRangeMul  1.0 / [1.15] / 1.35 -> 1.15 최적 (1.0과 거의 동률)
+    #   HardTurnAtaDeg    35 / [45] / 55      -> 45 최적
+    #
+    # 반복 관찰: 평균이 높은 변형은 대개 shutout이 나쁘다(고편차).
+    #   예) Snap1.35/Hard55 평균 5.38s(3.6배)인데 shutout 63% vs 기준 50%
+    #   -> 점수식이 p20과 shutout에 가중치를 두는 이유다.
+    #
+    # 다음 후보 (아직 미탐색): GunAimRangeMul, InterceptRangeM, AltRecoverM, DefBreakRangeM
     grid = {
-        "HoldTicks": [30.0, 45.0, 60.0, 90.0],
+        "InterceptRangeM": [2800.0, 3500.0, 4200.0],
     }
     keys = list(grid)
     combos = list(itertools.product(*(grid[k] for k in keys)))
