@@ -114,13 +114,25 @@ def compute_reward(
     cfg = reward_config
     c: dict[str, float] = {"step": float(cfg.get("step_penalty", -0.01))}
 
-    dist = float(geo_info._get_distance(ownship_state, target_state))
+    # ⚠️ NaN 방어 — **고정 표적(target_mode="fixed") 단계에서 필수다.**
+    #    고정 표적은 비행하지 않아 기수벡터가 정의되지 않고, 그때
+    #    _get_antenna_train_angle(target, own)이 NaN을 낸다.
+    #    NaN이 보상에 섞이면 그래디언트가 오염돼 **학습이 통째로 죽는다**
+    #    (실측: 스테이지 0에서 24반복 내내 Reward/Entropy/VF_loss 전부 nan).
+    def _f(v, default=0.0):
+        try:
+            x = float(v)
+        except (TypeError, ValueError):
+            return default
+        return x if x == x and abs(x) != float("inf") else default
+
+    dist = _f(geo_info._get_distance(ownship_state, target_state), 99999.0)
     # Los_Degree(BT)와 수학적으로 동일한 ATA. WEZ 판정의 주축이다.
-    my_ata = float(geo_info._get_antenna_train_angle(ownship_state, target_state, False))
-    en_ata = float(geo_info._get_antenna_train_angle(target_state, ownship_state, False))
-    sim_t = float(ownship_state[StateIndex.SIM_TIME])
-    own_alt = float(ownship_state[StateIndex.ALT])
-    own_kcas = float(ownship_state[StateIndex.KCAS])
+    my_ata = _f(geo_info._get_antenna_train_angle(ownship_state, target_state, False), 180.0)
+    en_ata = _f(geo_info._get_antenna_train_angle(target_state, ownship_state, False), 180.0)
+    sim_t = _f(ownship_state[StateIndex.SIM_TIME])
+    own_alt = _f(ownship_state[StateIndex.ALT], 5000.0)
+    own_kcas = _f(ownship_state[StateIndex.KCAS], _CORNER_KCAS_MS)
 
     cone, r_min, r_max = _wez_window(sim_t)
     in_range = (r_min <= dist <= r_max)
@@ -187,6 +199,9 @@ def compute_reward(
             term = float(cfg.get("draw_reward", -20.0))
     c["terminal"] = term
 
+    # 마지막 방어선 — 어떤 항목도 NaN/inf를 내보내지 않는다
+    for k, v in list(c.items()):
+        c[k] = _f(v)
     return float(sum(c.values())), c
 
 
