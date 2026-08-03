@@ -63,8 +63,16 @@ namespace Action
 			{
 				const float dz = (float)(bb->MyLocation_Cartesian.Z
 					- bb->TargetLocaion_Cartesian.Z);
-				const bool aheadOnAlt = (dz > LATCH_ALT_M);
-				const bool aheadOnEnergy = (bb->EnergyAdvantage_M > LATCH_ES_M);
+				// (EP36) **우위/열세가 아니라 대칭/비대칭으로 본다.**
+				//   에너지 회복 강하는 EP24에서 "대칭 중립 머지의 상호 상승 스파이럴"을
+				//   고치려고 만든 처방이다. 비대칭으로 시작한 판은 다른 문제다.
+				//   alt_split_low(내가 600~1,200m 아래에서 시작)는 EP33~35의 '우위' 조건에
+				//   안 걸려서 강하가 발동했고, **이미 아래인데 더 내려가** 1.27s로 무너졌다
+				//   (v7.1 6.41s). 부호를 없애 절대값으로 보면 이 셀도 걸린다.
+				//   예선은 개전 시 dz≈0, Es차≈0이라 여전히 대칭(2)으로 잡힌다.
+				const bool aheadOnAlt = (dz > LATCH_ALT_M || dz < -LATCH_ALT_M);
+				const bool aheadOnEnergy = (bb->EnergyAdvantage_M > LATCH_ES_M
+					|| bb->EnergyAdvantage_M < -LATCH_ES_M);
 				// (EP35) **위치 우위**(퍼치)도 래치한다.
 				//   off_outside_tc(6K 퍼치)는 고도도 속도도 같고 **위치**로 우위를
 				//   시작하므로 EP33/EP34가 못 잡았다(2.20s vs v7.1 9.70s).
