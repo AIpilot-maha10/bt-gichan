@@ -61,6 +61,8 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--seeds", type=int, default=30)   # 20판은 순위가 뒤집힌다(아래 주석)
     ap.add_argument("--opponent", default="jegalmin")
+    ap.add_argument("--seed-base", type=int, default=10_000,
+                    help="확정 검증은 겹치지 않는 시드로. 예: 50000")
     a = ap.parse_args()
 
     # ⚠️ 표본 하한: **최소 30판/변형**. 20판은 순위를 뒤집는다.
@@ -96,20 +98,28 @@ def main() -> int:
     #   GunAimRangeMul    1.3 / [1.5] / 1.8  -> 1.5 최적 (양쪽 shutout 73%/77%)
     #
     # ═══ 파라미터 연구 종결 (9포트 중 8개 탐색) ═══
-    # **개선 여지 없음.** 6개 상수 전부 현재값이 최적, 2개는 예선에서 무효,
-    # 1개(GunAimAtaDeg)는 SnapShot이 선점해 효과 없음.
-    # v6의 손튜닝 상수들이 좌표 수정 후에도 국소 최적이다.
     #
-    # ⚠️ 한계: 모든 스윕이 시드 10000번대다. 새 시드 50000번대 확정검증에서
-    #    vs jegalmin shutout이 50% -> 80%로 나왔다(10000번대가 운이 좋았다).
-    #    다만 6개 상수 전부 양방향 악화라는 일관된 패턴이라 시드 특이적일
-    #    가능성은 낮다고 본다. 다시 스윕한다면 50000번대로 할 것.
+    # 정직한 결론: **어떤 변형도 기준을 뚜렷하게 이기지 못했다.**
+    # 차이는 대부분 노이즈이고, 개선 여지가 있다는 증거를 못 찾았다.
+    #
+    # ⚠️ "6개 상수 전부 최적"은 과한 표현이었다. HardTurnAtaDeg를 새 시드
+    #    50000번대로 재스윕하니 순위가 뒤집혔다:
+    #      10000번대: 45(-24.25) > 35(-30.80) > 55(-32.14)
+    #      50000번대: 35(-38.20) > 45(-39.90) > 55(-42.98)
+    #    35와 45는 shutout 23/30 vs 24/30 = 1판 차이로 구분 불가.
+    #    55만 양쪽에서 일관되게 나쁘다.
+    #
+    #    또 새 시드에선 점수 자체가 훨씬 낮다(-38~-43 vs -24~-32).
+    #    10000번대가 유리한 시드 집합이었다는 확정검증 결과와 일치한다.
+    #
+    # -> 앞으로 스윕은 **양쪽 시드 집합에서 모두** 확인할 것.
+    #    한쪽에서만 이기는 변형은 채택하지 않는다.
     grid = {
-        "GunAimRangeMul": [1.5],   # 재확인용 단일점. 새 축을 넣으려면 여기 수정
+        "HardTurnAtaDeg": [35.0, 45.0, 55.0],
     }
     keys = list(grid)
     combos = list(itertools.product(*(grid[k] for k in keys)))
-    seeds = seed_list(a.seeds, 10_000)
+    seeds = seed_list(a.seeds, a.seed_base)
     print(f"변형 {len(combos)}개 x {len(seeds)}판 = {len(combos)*len(seeds)}판 "
           f"(약 {len(combos)*len(seeds)*11/60:.0f}분), vs {a.opponent}\n")
 
