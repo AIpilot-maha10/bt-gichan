@@ -37,7 +37,12 @@ namespace Action
 	//
 	// 안전: 고도 여유가 큰 국면에만 건다. btjegal전 종반(1,478m)에는 발동하지 않아
 	//   이기고 있는 교전을 건드리지 않는다. 추락 0판 유지가 불변 조건이다.
-	static const float ED_CAS_TARGET_KT = 300.0f;   // 이 아래면 회복 개입
+	// (EP26) 목표치를 300 -> 350kt. **실측 코너에 맞춘다.**
+	//   EP24에서 300으로 잡은 건 근거 없는 임의값이었다. A-4 실측 코너는 CAS 350kt다.
+	//   그 결과 EP24 적용 후 150-200s의 CAS가 337kt로 올라오자 needSpeed가 거짓이 되어
+	//   **정작 속도가 필요한 국면에서 회복이 꺼졌다.** 코너 50kt 아래에서 멈추고 있었다.
+	//   선회율은 이 50kt에 직접 걸린다 — 현재 11.5°/s vs jegalmin 14.3°/s.
+	static const float ED_CAS_TARGET_KT = 350.0f;   // 이 아래면 회복 개입 (= A-4 실측 코너)
 	static const float ED_CAS_FLOOR_KT = 150.0f;    // 여기서 개입 강도 최대
 	static const float ED_MIN_MARGIN_M = 3000.0f;   // 녹아웃(305m) 위로 이만큼 여유가 있을 때만
 	static const float ED_MAX_DIVE_DEG = 30.0f;     // 이 국면에선 하강각 제한을 푼다 (기본 15)
