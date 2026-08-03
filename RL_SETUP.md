@@ -116,3 +116,44 @@ C드라이브 하드코딩은 문제가 되지 않는다. **옮길 필요 없다
 ## 되돌리기
 
 `.venv-rl` 폴더 삭제. 시스템 환경은 전혀 건드리지 않았다.
+
+
+---
+
+# 하이브리드 fallback — `residual`보다 `blend`를 먼저 시험할 것
+
+계획은 *"RL이 단독으로 BT를 못 이기면 BT 주행 + RL 보정 하이브리드로 제출 가능 —
+현실적인 최선일 가능성이 높다"* 고 했다. 경로는 이미 배선돼 있다.
+
+## 배선 확인 (정상)
+
+`run_unreal_inference.py:111`
+```python
+HybridActionProvider(primary_provider=rl_provider, secondary_provider=bt_provider, ...)
+```
+`hybrid_action_provider.py:54` (residual 모드)
+```python
+action = secondary_result.action + self.residual_scale * primary_result.action
+#      = BT                      + 0.35 * RL
+```
+→ **BT 주행 + RL 보정**이 맞다. 계획 의도와 일치.
+
+## ⚠️ 그런데 우리 BT에는 residual이 잘 안 맞을 수 있다
+
+`diag_pullcmd` 실측: **ATA>60°(교전의 66.5%)에서 BT의 엘리베이터 명령이
+86~87% 포화**돼 있다(`LonCtrlCmd` 중앙 −1.000).
+
+포화 상태에서 `BT + 0.35×RL`을 하면 `clip_action`에서 잘려 **RL 보정이 사라진다.**
+하필 **개선이 가장 필요한 국면(고ATA 선회)** 에서 BT가 조종면을 다 쓰고 있다.
+
+| 모드 | 식 | 포화 영향 |
+|---|---|---|
+| `residual` | `BT + 0.35·RL` | 🔴 BT 포화 구간에서 RL 기여가 클립됨 |
+| `blend` | `α·RL + (1−α)·BT` | ✅ 포화 없음 — 항상 RL이 반영됨 |
+| `switch` | 선택자에 따라 하나 | selector 미구현(기본 primary) |
+
+**권장**: 하이브리드를 쓸 때 `--hybrid-mode blend --alpha 0.3` 부터 시험한다.
+`residual`은 우리 BT의 포화 특성 때문에 효과가 약할 것으로 예상된다.
+
+⚠️ 이건 **추론이지 측정이 아니다.** RL 번들이 생기면 두 모드를 하네스로 직접 비교할 것
+(5상대 로스터, `tgt_health_final` 기준).
