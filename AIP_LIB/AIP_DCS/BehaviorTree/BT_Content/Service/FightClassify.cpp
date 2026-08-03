@@ -39,6 +39,25 @@ namespace Action
 			return NodeStatus::SUCCESS;
 		}
 
+		// ── (v7 EP33) 개전 시 고도 우위를 래치한다 ──────────────────────────────
+		// 개전 직후 한 번만 판정하고 그 판 내내 유지한다. 한 번 정해지면 덮어쓰지 않는다.
+		//
+		// EP32는 같은 구조를 **8초**에 판정했다가 예선을 깨뜨렸다 — 그때는 이미 기동이
+		// 진행돼 btjegal전 상당수 판에서 내가 적보다 위에 있고, 래치가 '우위'로 잡혀
+		// 그 판 내내 강하가 꺼졌다(승 30->27, 22->18).
+		// 예선 IC는 **양측 고도가 정확히 같다**(4,702m). 개전 직후로 당기면 dz≈0이라
+		// 열세(2)로 잡히고 예선 동작은 EP28과 동일해진다.
+		{
+			const double LATCH_AT_SEC = 0.5;      // 개전 직후 — 초기 기하가 아직 살아있다
+			const float  LATCH_ALT_M = 300.0f;    // 이만큼 위면 우위로 본다
+			if (bb->OpeningLatch == 0 && bb->RunningTime >= LATCH_AT_SEC)
+			{
+				const float dz = (float)(bb->MyLocation_Cartesian.Z
+					- bb->TargetLocaion_Cartesian.Z);
+				bb->OpeningLatch = (dz > LATCH_ALT_M) ? 1 : 2;
+			}
+		}
+
 		const float dist = bb->Distance;
 		const float myAta = bb->Los_Degree;			//내 기수 -> 적 (0=적이 정면)
 		const float enAta = bb->Los_Degree_Target;	//적 기수 -> 나 (0=내가 적 정면) = AOT

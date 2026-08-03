@@ -90,6 +90,7 @@ CPPBlackBoard::CPPBlackBoard()
 	Closure_MS = 0.0f;
 	FightType = FT_Neutral;
 	FightTypeHold = 0;
+	OpeningLatch = 0;
 
 
 	

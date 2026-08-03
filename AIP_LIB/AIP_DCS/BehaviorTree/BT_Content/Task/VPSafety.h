@@ -78,7 +78,14 @@ namespace Action
 		// 대조 검증에서 불일치 0.0%로 확인된 값이다.
 		const bool behindOnEnergy = (BB->EnergyAdvantage_M < 0.0f);
 
-		const bool energyDive = needSpeed && haveRoom && behindOnEnergy;
+		// ── (EP33) 개전 시 고도 우위로 시작했으면 그 판 내내 강하를 억제한다 ──────
+		// EP32에서 래치 자체는 작동이 확인됐다 — diag 5개 셀이 EP28과 소수점까지 같고
+		// alt_split_high만 3.81 -> 9.38로 바뀌었다. 문제는 판정 시점(8초)이었다.
+		// EP33은 개전 0.5초로 당긴다. 예선 IC는 양측 동고도라 열세(2)로 잡혀
+		// 예선 동작은 EP28과 동일해야 한다(검증 가능한 예측).
+		const bool startedWithHeight = (BB->OpeningLatch == 1);
+
+		const bool energyDive = needSpeed && haveRoom && behindOnEnergy && !startedWithHeight;
 		if (energyDive)
 		{
 			if (maxDiveDeg < ED_MAX_DIVE_DEG) maxDiveDeg = ED_MAX_DIVE_DEG;
