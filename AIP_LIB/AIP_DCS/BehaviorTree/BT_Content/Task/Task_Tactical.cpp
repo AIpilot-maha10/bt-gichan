@@ -548,6 +548,47 @@ NodeStatus Action::Task_Tactical::tick()
 		maxDive = 25.0f;
 		throttle = CornerHoldThrottle(speed);
 
+		// ── (v7 EP17) 고도를 CAS로 바꾼다 — **각도는 건드리지 않는다** ──────
+		//
+		// 상대 비교 진단(같은 시드 5판씩)에서 드러난 것:
+		//                    vs btjegal(이김)   vs jegalmin(못이김)
+		//   내 고도            3,704m             6,908m
+		//   내 속도(TAS)        230 m/s            155 m/s
+		//   -> CAS              375 kt             211 kt
+		//   사거리 내 내 ATA     4.9°               93.7°
+		//
+		// btjegal전에선 자연히 강하해 **코너속도(350kt)에 안착**하는데,
+		// jegalmin전에선 6,900m에 높고 느린 채로 갇힌다. CAS 211kt는 교범이
+		// "Below 250 knots the turn radius opens back up again"이라 한 구간이다.
+		// 거기서 상대는 36 m/s 빠르고 두 배로 세게 돈다 -> 레이트 싸움 완패.
+		//
+		// EP8/EP9는 이걸 고치려다 **VP를 기수 쪽으로 블렌드**해서 각도를 잃었고
+		// 그래서 실패했다. 여기서는 **VP의 수평 성분을 그대로 두고** 고도만 낮춘다.
+		// 같은 TAS라도 아래로 내려가면 공기가 조밀해져 CAS가 오른다(공짜 이득).
+		//
+		// 안전장치: 사거리 근처에선 절대 건드리지 않는다(1° 콘을 지켜야 하므로).
+		// ⚠️ (EP17 결론) 발동을 껐다. jegalmin전엔 효과가 있었으나 btjegal전 승리가 급감.
+		//   vs jegalmin: 최소 ATA 4.63->2.42도 (개선28/악화12, p=0.017) 유의, shutout 32->29
+		//   vs btjegal : WEZ 11.10->16.63s 인데 **승리 27->17판**
+		//
+		// 모순의 원인: 로컬 sim의 실제 데미지는 **Phase1 콘(1도) 고정**으로 계산된다.
+		// EP17은 Phase2/3(넓은 콘)에서 WEZ를 크게 늘렸지만(13117->17498, 11798->20375)
+		// 실제 데미지를 내는 Phase1 콘 기준으로는 8935->8420틱으로 **줄었다**.
+		// 즉 넓은 콘 시간만 벌고 좁은 콘 시간은 잃었다.
+		//
+		// 교훈: 하네스의 시간게이트 WEZ와 sim의 실제 데미지가 다르다. 채택 판단에는
+		//       **승리 수**와 wez_dealt_ticks_phase1only 를 같이 봐야 한다.
+		const bool highAndSlow = false && (casKt < 260.0f) && (alt > 4000.0f);
+		const bool farEnough   = (dist > 1500.0f);   // 이 거리면 수직 오프셋의 각도비용이 작다
+		if (highAndSlow && farEnough)
+		{
+			// 거리에 비례해 낮춘다 — 각도비용을 일정하게 유지(약 7° 이하)
+			const float drop = clampf(dist * 0.12f, 0.0f, 400.0f);
+			vp.Z = tgtPos.Z - (double)drop;
+			maxDive = 35.0f;
+			throttle = 1.0f;
+		}
+
 		// ── (v7 EP9) 에너지 규율 — 조준을 해치지 않는 구간에서만 ──────────
 		//
 		// EP8 실패: CAS<230이면 무조건 VP를 기수 쪽으로 블렌드했더니
