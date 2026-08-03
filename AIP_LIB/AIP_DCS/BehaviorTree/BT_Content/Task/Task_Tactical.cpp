@@ -59,7 +59,7 @@ struct WezWindow
 
 // ── (EP21 기각) 코너속도 임계를 CAS로 바꿨다가 되돌렸다 ────────────────────
 // 참고용으로 남긴다. 다시 시도할 사람은 아래 "왜 실패했나"를 먼저 읽을 것.
-// static const float CORNER_CAS_HI = 380.0f;
+static const float CORNER_CAS_KT = 350.0f;   // (EP25) A-4 실측 코너. 이 아래면 가속
 // static const float CORNER_CAS_LO = 300.0f;
 
 static WezWindow GetWez(double runningTime)
@@ -93,8 +93,52 @@ static WezWindow GetWez(double runningTime)
 // 조치까지 CAS로 옮겨야 하는 건 아니다.** 코너는 있고 싶은 지점이지 피할
 // 지점이 아니라서, 30kt 위에서 0.25로 끊으면 코너 한참 아래로 떨어진다.
 // 다시 시도한다면 임계값이 아니라 **감속량**(0.25 대신 0.7 등)부터 손댈 것.
-static float CornerHoldThrottle(float speedMs)
+//
+// ── (EP25) EP21이 옳게 지목했지만 틀리게 고쳤다. 최소 수정으로 다시 간다 ──────
+// diag_throttle 실측 (EP24 적용본, 시드 50000~, 8판씩):
+//                    코너미만체류   그중 스로틀<0.9   그때 Nz
+//   vs btjegal          37.6%          21.3%         3.87G   (전체의 8.0%)
+//   vs jegalmin         77.5%          43.0%         3.55G   (전체의 **33.3%**)
+//
+// jegalmin전은 **교전 시간의 33%를 "코너 미만인데 스로틀 0.55"로** 보낸다.
+// 그때 Nz가 3.55G뿐이라 선회를 위한 의도적 감속이 아니라 순수 낭비다.
+// 비에너지가 7,132 -> 5,914로 줄고 적은 7,739 -> 8,560으로 느는 게 여기서 나온다.
+//
+// 아래 TAS 185~230 "유지" 구간을 고도별로 CAS 환산하면 범인이 드러난다:
+//   jegalmin전 4,700m -> CAS 285~354kt  <- 코너(350) **아래**를 통째로 덮는다
+//   btjegal전  2,300m -> CAS 320~398kt  <- 코너를 걸친다 (그래서 덜 해롭다)
+//
+// EP21은 임계값 **둘 다** CAS로 옮겨 저고도 감속을 폭증시켰다(승 27->8).
+// 여기서는 상단 컷(TAS>230 -> 0.25)을 **그대로 둔다** — 그게 btjegal을 지키던 동작이다.
+// 바꾸는 건 하나뿐이다: **코너 아래에서는 감속하지 않는다.**
+// 코너는 있고 싶은 지점이므로 그 아래면 가속해서 올라가는 게 맞다.
+//
+// ── EP25 결과: 기각. **"낭비"라는 내 해석이 틀렸다** ────────────────────────
+//   시드 50000 (vs EP24 기준):
+//     btjegal   적체력 0.242 -> 0.382 | 승 27 -> **20** | shutout 1 -> 1
+//     jegalmin  적체력 0.991 -> 0.991 | 승  0 -> 0      | shutout 20 -> 21
+//   시드 10000:
+//     btjegal   적체력 0.168 -> 0.297 | 승 18 -> 18     | shutout 0 -> 1
+//     jegalmin  적체력 0.984 -> 0.987 | 승  0 -> 0      | shutout 16 -> 17
+//
+// btjegal 승 -7판. jegalmin은 양쪽 시드 모두 개선 0.
+//
+// **왜 틀렸나**: 코너 바로 아래의 0.55는 낭비가 아니라 **사격 해법을 만드는 동작**이다.
+//   감속 -> 선회반경 축소 -> 조준이 붙는다. 풀스로틀로 바꾸니 오버슛이 나서
+//   btjegal전 승리 7판이 날아갔다. jegalmin전은 애초에 사거리 안에 못 들어가므로
+//   (shutout 20/40) 같은 조치가 이득도 손해도 안 됐다.
+//
+// 즉 diag_throttle이 잰 "코너 미만 + 스로틀<0.9 = 33%"는 **낭비 지표가 아니었다.**
+//   같은 숫자가 이기는 교전에선 사격 준비, 못 이기는 교전에선 그냥 무의미다.
+//   지표가 맞아도 **그 지표에 붙인 이름(=해석)이 틀리면 조치가 틀린다.**
+//
+// 재시도한다면: 사격 국면(GunAim/SnapShot)에는 손대지 말고 **사거리 밖에서만**
+//   가속하는 형태여야 한다. 다만 그 경우 jegalmin전 이득이 있을지는 미지수다.
+static float CornerHoldThrottle(float speedMs, float casKt)
 {
+	// (EP25 기각) 아래 한 줄이 문제였다. 발동 차단.
+	if (false && casKt > 1.0f && casKt < CORNER_CAS_KT) return 1.0f;
+
 	if (speedMs > 230.0f) return 0.25f;
 	if (speedMs < 185.0f) return 1.0f;
 	return 0.55f;
@@ -504,7 +548,7 @@ NodeStatus Action::Task_Tactical::tick()
 		if (enemyAta > 120.0f && myPos.Z > 2200.0f)
 			throttle = 1.0f;
 		else
-			throttle = CornerHoldThrottle(speed);
+			throttle = CornerHoldThrottle(speed, casKt);
 	}
 	else if (behavior == "GunAim")
 	{
@@ -540,7 +584,7 @@ NodeStatus Action::Task_Tactical::tick()
 		vp.Z = myPos.Z;
 		aiming = false;
 		maxDive = 10.0f;
-		throttle = CornerHoldThrottle(speed); // 코너속도로 최대 선회율
+		throttle = CornerHoldThrottle(speed, casKt); // 코너속도로 최대 선회율
 	}
 	else if (behavior == "MergeTurn")
 	{
@@ -569,7 +613,7 @@ NodeStatus Action::Task_Tactical::tick()
 		vp = tgtPos;
 		aiming = true;
 		maxDive = 25.0f;
-		throttle = CornerHoldThrottle(speed);
+		throttle = CornerHoldThrottle(speed, casKt);
 
 		// ── (v7 EP17) 고도를 CAS로 바꾼다 — **각도는 건드리지 않는다** ──────
 		//
@@ -706,7 +750,7 @@ NodeStatus Action::Task_Tactical::tick()
 		else if (dist > 1500.0f)
 			throttle = (closure > 300.0f) ? 0.5f : 1.0f;  // 과속 접근 억제(관통 방지)
 		else
-			throttle = CornerHoldThrottle(speed);
+			throttle = CornerHoldThrottle(speed, casKt);
 	}
 
 	// ── (v6 Phase1.5) 저고도 전역 보호 (모든 상태 공통) ────────────
