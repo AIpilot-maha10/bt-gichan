@@ -51,6 +51,7 @@ CPPBlackBoard::CPPBlackBoard()
 	PrevTargetForward = Vector3(0, 0, 0);
 	EnemyTurnSign = 0.0f;
 	PrevClosure = 0.0f;
+	SlowDwellTicks = 0;
 	MergeTurnTicks = 0;
 	MergeTurnSign = 0.0f;
 

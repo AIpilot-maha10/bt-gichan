@@ -165,6 +165,7 @@ public:
 	Vector3 PrevTargetForward;								//적 기수벡터 직전값 (회전방향 산출용)
 	float   EnemyTurnSign;									//적 회전방향 +1=시계(위에서 볼 때) -1=반시계, 0=미정
 	float   PrevClosure;									//직전 닫힘속도 — 머지(최근접) 통과 감지용
+	int     SlowDwellTicks;								//(v7 EP19) CAS 250kt 미만 연속 틱 — 일시적 저속과 만성 저속 구분
 	int     MergeTurnTicks;									//머지 후 선회방향 강제 남은 틱
 	float   MergeTurnSign;									//그때 내가 돌 방향
 
