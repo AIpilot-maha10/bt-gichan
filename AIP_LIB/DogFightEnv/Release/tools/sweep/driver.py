@@ -83,8 +83,13 @@ def main() -> int:
     #   -> 점수식이 p20과 shutout에 가중치를 두는 이유다.
     #
     # 다음 후보 (아직 미탐색): GunAimRangeMul, InterceptRangeM, AltRecoverM, DefBreakRangeM
+    # 5차(마지막): 남은 두 상수.
+    # AltRecoverM은 성격이 다르다 - 안전 여유를 실전 공간으로 바꾸는 시도다.
+    # 녹아웃이 305m인데 900m에서 회복을 시작하면 595m를 안 쓰는 셈이다.
+    # 낮추면 싸울 고도가 늘지만 추락 위험이 오른다 -> 점수식의 추락 -300이 잡아준다.
     grid = {
-        "InterceptRangeM": [2800.0, 3500.0, 4200.0],
+        "AltRecoverM":    [600.0, 900.0, 1200.0],
+        "DefBreakRangeM": [1000.0, 1400.0, 1800.0],
     }
     keys = list(grid)
     combos = list(itertools.product(*(grid[k] for k in keys)))
