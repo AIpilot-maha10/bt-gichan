@@ -50,11 +50,20 @@ namespace Action
 		{
 			const double LATCH_AT_SEC = 0.5;      // 개전 직후 — 초기 기하가 아직 살아있다
 			const float  LATCH_ALT_M = 300.0f;    // 이만큼 위면 우위로 본다
+			// (EP34) 고도뿐 아니라 **에너지 우위로 시작한 경우**도 래치한다.
+			//   EP33은 고도차만 봐서 energy_up 셀(고도는 같고 속도가 230~270 vs
+			//   120~150 m/s)을 놓쳤다 — 7.46s로 v7.1(13.21s)에 한참 못 미친다.
+			//   개전 시 속도 우위도 "퍼치를 쥐고 시작"한 것이므로 환수 대상이 아니다
+			//   (교범 §4.2.3: 에너지는 공격적 이익에 쓴다).
+			//   예선 IC는 양측 고도·속도가 정확히 같아 Es차 ~= 0 -> 열세(2)로 잡힌다.
+			const float  LATCH_ES_M = 500.0f;     // 비에너지 우위 문턱(미터)
 			if (bb->OpeningLatch == 0 && bb->RunningTime >= LATCH_AT_SEC)
 			{
 				const float dz = (float)(bb->MyLocation_Cartesian.Z
 					- bb->TargetLocaion_Cartesian.Z);
-				bb->OpeningLatch = (dz > LATCH_ALT_M) ? 1 : 2;
+				const bool aheadOnAlt = (dz > LATCH_ALT_M);
+				const bool aheadOnEnergy = (bb->EnergyAdvantage_M > LATCH_ES_M);
+				bb->OpeningLatch = (aheadOnAlt || aheadOnEnergy) ? 1 : 2;
 			}
 		}
 
