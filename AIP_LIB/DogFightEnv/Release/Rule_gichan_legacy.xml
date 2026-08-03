@@ -1,0 +1,17 @@
+<root main_tree_to_execute="MainTree">
+  <!-- A-1 지표 노드(LosRateUpdate/EnergyUpdate/TurnGeomUpdate/FightClassify) 이전의
+       구버전 gichan DLL(v1/v6/coordfix)을 **스파링 상대로 쓰기 위한** 트리다.
+       그 DLL들은 새 노드를 등록하지 않아 Rule_gichan.xml로는 초기화가 실패한다.
+       ⚠️ 제출용이 아니다. 현재 빌드는 반드시 Rule_gichan.xml을 쓴다. -->
+  <BehaviorTree ID="MainTree">
+    <Sequence>
+      <SelectTarget name="SelectTarget" BB="{BB}"/>
+      <DirectionVectorUpdate name="DirectionVectorUpdate" BB="{BB}"/>
+      <DistanceUpdate name="DistanceUpdate" BB="{BB}"/>
+      <CheckSight name="CheckSight" BB="{BB}"/>
+      <AngleOffUpdate name="AngleOffUpdate" BB="{BB}"/>
+      <AspectAngleUpdate name="AspectAngleUpdate" BB="{BB}"/>
+      <Task_Tactical name="Tactical" BB="{BB}"/>
+    </Sequence>
+  </BehaviorTree>
+</root>
