@@ -55,6 +55,42 @@ CPPBlackBoard::CPPBlackBoard()
 	MergeTurnTicks = 0;
 	MergeTurnSign = 0.0f;
 
+	//(v7 A-1) LOSR 이력 초기화. 판 사이 이월을 끊는 게 목적이라 Count/Head를 반드시 0으로
+	for (int i = 0; i <= LOSR_BASE; ++i)
+	{
+		LosHistVec[i] = Vector3(0, 0, 0);
+		LosHistAta[i] = 0.0f;
+		LosHistTime[i] = 0.0;
+	}
+	LosHistCount = 0;
+	LosHistHead = 0;
+	LosRate_DegPerSec = 0.0f;
+	LosRateMag_DegPerSec = 0.0f;
+
+	AspectFromTail_Deg = 0.0f;
+
+	MyEnergy_M = 0.0f;
+	TargetEnergy_M = 0.0f;
+	EnergyAdvantage_M = 0.0f;
+
+	for (int i = 0; i <= LOSR_BASE; ++i)
+	{
+		MyFwdHist[i] = Vector3(0, 0, 0);
+		TgtFwdHist[i] = Vector3(0, 0, 0);
+		TurnHistTime[i] = 0.0;
+	}
+	TurnHistCount = 0;
+	TurnHistHead = 0;
+	MyTurnRate_DegPerSec = 0.0f;
+	TargetTurnRate_DegPerSec = 0.0f;
+	MyTurnRadius_M = 0.0f;
+	TargetTurnRadius_M = 0.0f;
+	MyNz_Est = 1.0f;
+
+	Closure_MS = 0.0f;
+	FightType = FT_Neutral;
+	FightTypeHold = 0;
+
 
 	
 }

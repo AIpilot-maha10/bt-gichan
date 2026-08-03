@@ -92,7 +92,7 @@ public:
 	  20 MyCas_Kt         21 IsOneCircle
 	*/
 	int FillDebugScalars(double* out, int n) const;
-	static const int DEBUG_SCALAR_COUNT = 22;
+	static const int DEBUG_SCALAR_COUNT = 35;
 
 	/*
 	비헤비어트리에서 생성된 VP를 향하여 비행기가 바라보도록 비행기가 움직이게 하는 스틱값을 생성하는 함수

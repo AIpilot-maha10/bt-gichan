@@ -75,6 +75,10 @@ void UCPPBehaviorTree::init()
 		Factory.registerNodeType<Action::AngleOffUpdate>("AngleOffUpdate");
 		Factory.registerNodeType<Action::DirectionVectorUpdate>("DirectionVectorUpdate");
 		Factory.registerNodeType<Action::AspectAngleUpdate>("AspectAngleUpdate");
+		Factory.registerNodeType<Action::LosRateUpdate>("LosRateUpdate");
+		Factory.registerNodeType<Action::EnergyUpdate>("EnergyUpdate");
+		Factory.registerNodeType<Action::TurnGeomUpdate>("TurnGeomUpdate");
+		Factory.registerNodeType<Action::FightClassify>("FightClassify");
 		Factory.registerNodeType<Action::DECO_BFMCheck>("DECO_BFMCheck");
 		Factory.registerNodeType<Action::DECO_DistanceCheck>("DECO_DistanceCheck");
 		Factory.registerNodeType<Action::DECO_LOSCheck>("DECO_LOSCheck");
@@ -353,6 +357,20 @@ int UCPPBehaviorTree::FillDebugScalars(double* out, int n) const
 		(double)BB->HardTurnDwell,
 		(double)BB->MyCas_Kt,			// (v7) 추정 CAS
 		(double)BB->IsOneCircle,		// (v7) 1=1서클 0=2서클
+		// ── (v7 A-1) 신규 지표 ────────────────────────────────────────────
+		(double)BB->LosRate_DegPerSec,			// +=후방 −=전방
+		(double)BB->LosRateMag_DegPerSec,
+		(double)BB->AspectFromTail_Deg,			// 교범 기준 AA (꼬리 기준)
+		(double)BB->MyEnergy_M,
+		(double)BB->TargetEnergy_M,
+		(double)BB->EnergyAdvantage_M,
+		(double)BB->MyTurnRate_DegPerSec,
+		(double)BB->TargetTurnRate_DegPerSec,
+		(double)BB->MyTurnRadius_M,
+		(double)BB->TargetTurnRadius_M,
+		(double)BB->Closure_MS,
+		(double)BB->MyNz_Est,
+		(double)BB->FightType,
 	};
 
 	const int count = (n < DEBUG_SCALAR_COUNT) ? n : DEBUG_SCALAR_COUNT;

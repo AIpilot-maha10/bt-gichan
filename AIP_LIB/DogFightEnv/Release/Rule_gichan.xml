@@ -7,6 +7,10 @@
       <CheckSight name="CheckSight" BB="{BB}"/>
       <AngleOffUpdate name="AngleOffUpdate" BB="{BB}"/>
       <AspectAngleUpdate name="AspectAngleUpdate" BB="{BB}"/>
+      <LosRateUpdate name="LosRateUpdate" BB="{BB}"/>
+      <EnergyUpdate name="EnergyUpdate" BB="{BB}"/>
+      <TurnGeomUpdate name="TurnGeomUpdate" BB="{BB}"/>
+      <FightClassify name="FightClassify" BB="{BB}"/>
       <Task_Tactical name="Tactical" BB="{BB}"/>
     </Sequence>
   </BehaviorTree>

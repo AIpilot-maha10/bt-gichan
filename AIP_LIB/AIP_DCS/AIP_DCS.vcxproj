@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
@@ -226,6 +226,10 @@
     <ClInclude Include="BehaviorTree\BT_Content\Functions.h" />
     <ClInclude Include="BehaviorTree\BT_Content\Service\AngleOffUpdate.h" />
     <ClInclude Include="BehaviorTree\BT_Content\Service\AspectAngleUpdate.h" />
+    <ClInclude Include="BehaviorTree\BT_Content\Service\LosRateUpdate.h" />
+    <ClInclude Include="BehaviorTree\BT_Content\Service\EnergyUpdate.h" />
+    <ClInclude Include="BehaviorTree\BT_Content\Service\TurnGeomUpdate.h" />
+    <ClInclude Include="BehaviorTree\BT_Content\Service\FightClassify.h" />
     <ClInclude Include="BehaviorTree\BT_Content\Service\CheckSight.h" />
     <ClInclude Include="BehaviorTree\BT_Content\Service\DirectionVectorUpdate.h" />
     <ClInclude Include="BehaviorTree\BT_Content\Service\DistanceUpdate.h" />
@@ -276,6 +280,10 @@
     <ClCompile Include="BehaviorTree\BT_Content\Functions.cpp" />
     <ClCompile Include="BehaviorTree\BT_Content\Service\AngleOffUpdate.cpp" />
     <ClCompile Include="BehaviorTree\BT_Content\Service\AspectAngleUpdate.cpp" />
+    <ClCompile Include="BehaviorTree\BT_Content\Service\LosRateUpdate.cpp" />
+    <ClCompile Include="BehaviorTree\BT_Content\Service\EnergyUpdate.cpp" />
+    <ClCompile Include="BehaviorTree\BT_Content\Service\TurnGeomUpdate.cpp" />
+    <ClCompile Include="BehaviorTree\BT_Content\Service\FightClassify.cpp" />
     <ClCompile Include="BehaviorTree\BT_Content\Service\CheckSight.cpp" />
     <ClCompile Include="BehaviorTree\BT_Content\Service\DirectionVectorUpdate.cpp" />
     <ClCompile Include="BehaviorTree\BT_Content\Service\DistanceUpdate.cpp" />

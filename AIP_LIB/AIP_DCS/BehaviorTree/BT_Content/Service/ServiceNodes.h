@@ -5,3 +5,7 @@
 #include "AngleOffUpdate.h"
 #include "AspectAngleUpdate.h"
 #include "SelectTarget.h"
+#include "LosRateUpdate.h"
+#include "EnergyUpdate.h"
+#include "TurnGeomUpdate.h"
+#include "FightClassify.h"

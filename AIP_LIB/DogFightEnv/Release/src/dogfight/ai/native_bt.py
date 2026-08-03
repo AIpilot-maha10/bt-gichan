@@ -314,6 +314,16 @@ class AIPilot:
         "bt_my_x", "bt_my_y", "bt_my_z",
         "bt_tgt_x", "bt_tgt_y", "bt_tgt_z",
         "bt_enemy_in_sight", "bt_hold_ticks", "bt_hardturn_dwell",
+        # (v7) 아래 둘은 C++엔 있었는데 여기 이름이 빠져 조용히 버려지고 있었다
+        "bt_cas_kt", "bt_one_circle",
+        # (v7 A-1) 지표 노드 신규
+        "bt_losr", "bt_losr_mag",          # +=후방 −=전방
+        "bt_aspect_from_tail",             # 교범 기준 AA (꼬리 기준)
+        "bt_energy", "bt_tgt_energy", "bt_energy_adv",
+        "bt_turn_rate", "bt_tgt_turn_rate",
+        "bt_turn_radius", "bt_tgt_turn_radius",
+        "bt_closure", "bt_nz_est",
+        "bt_fight_type",   # 0=Neutral 1=Merge 2=OneCircle 3=TwoCircle 4=Chase 5=Defensive
     )
 
     def GetDebugScalars(self, my_id) -> dict:

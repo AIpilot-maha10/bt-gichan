@@ -44,6 +44,18 @@ enum WeaponMode
 	Missile
 };
 
+// (v7 A-1) 국면 분류. FightClassify가 정하고 블랙보드 FightType에 넣는다.
+// 순서는 진단 출력에서 그대로 쓰이므로 중간에 값을 끼워넣지 말 것(뒤에 추가만).
+enum FightTypeEnum
+{
+	FT_Neutral = 0,		//중립 - 아직 어느 싸움인지 정해지지 않았다
+	FT_Merge,			//머지 접근 중 - 양측 고아스펙트로 빠르게 닫히는 중
+	FT_OneCircle,		//1서클(최소반경). 교범: CAS<=350kt면 이쪽
+	FT_TwoCircle,		//2서클(레이트). CAS>350kt
+	FT_Chase,			//내가 뒤 - 적 꼬리 쪽에서 추격
+	FT_Defensive		//적이 내 뒤 - 방어
+};
+
 /*
 비행기들 객체 정보
 자세, 위치, 속도, 팀, resv0(리눅스에서 ID), Resv1(비행기의 HP), Resv2(유인기/무인기)
@@ -168,5 +180,56 @@ public:
 	int     SlowDwellTicks;								//(v7 EP19) CAS 250kt 미만 연속 틱 — 일시적 저속과 만성 저속 구분
 	int     MergeTurnTicks;									//머지 후 선회방향 강제 남은 틱
 	float   MergeTurnSign;									//그때 내가 돌 방향
+
+	// ── (v7 A-1) LOSR — 교범이 "모든 판단의 기본축"이라 부르는 지표 ──────────
+	// 턴서클 진입("후방 LOSR 증가"), 리드턴 시작("급격한 후방 LOSR"),
+	// 2서클 승리단서("전방 LOSR + AA<90"), TCX 종료("후방 LOSR 발생")가 전부 이것 기반.
+	//
+	// ⚠️ 위경도가 1e-6도(≈0.11m)로 양자화되어 들어온다. 인접 틱으로 각도를 재면
+	//    노이즈가 실제값의 6배로 낀다(A-4 실측에서 데였다) → 12틱(0.2초) 기선을 쓴다.
+	static const int LOSR_BASE = 12;						//기선 틱수
+	Vector3 LosHistVec[LOSR_BASE + 1];						//LOS 벡터 이력 (angleBetween이 정규화를 겸하므로 그대로 저장)
+	float   LosHistAta[LOSR_BASE + 1];						//같은 시점 ATA — 전/후방 부호 판정용
+	double  LosHistTime[LOSR_BASE + 1];						//같은 시점 RunningTime — 가변 dt 대응
+	int     LosHistCount;									//채워진 개수 (기선이 찰 때까지 0을 낸다)
+	int     LosHistHead;									//링버퍼 머리
+	float   LosRate_DegPerSec;								//부호 있는 LOSR. +=후방(적이 내 6시로 흐름) −=전방
+	float   LosRateMag_DegPerSec;							//크기만 (부호 무관 비교용)
+	float   Closure_MS;										//닫힘속도 m/s. +면 가까워지는 중 (LOSR과 같은 12틱 기선)
+
+	// ── (v7 A-1) 교범 기준 AA — 적 **꼬리** 기준(0°=내가 적 6시) ────────────
+	// MyAspectAngle_Degree는 적 **기수** 기준이라 교범과 보완각이다.
+	// 교범 임계값은 반드시 이쪽에만 적용할 것. (AspectAngleUpdate가 채운다)
+	float   AspectFromTail_Deg;
+
+	// ── (v7 A-1) 에너지 ──────────────────────────────────────────────────────
+	// 비에너지 Es = alt + v²/2g. 고도와 속도를 한 축으로 묶은 값.
+	// 교범 §4.2.3: 에너지는 ①공격적 이익 ②방어적 필요 ③머지 준비 에만 쓴다.
+	float   MyEnergy_M;
+	float   TargetEnergy_M;
+	float   EnergyAdvantage_M;								//내 Es − 적 Es. +면 내가 유리
+
+	// ── (v7 A-1) 선회 기하 ───────────────────────────────────────────────────
+	// 실제 비행경로에서 잰다(가정한 G가 아니라 실측). LOSR과 같은 12틱 기선.
+	// 교범의 TR(턴서클 반경)·CZ 위치 계산의 전제이고, "적 선회반경 안으로
+	// 들어가면 반전 기회를 준다"(§4.8.2) 같은 판단이 이걸 요구한다.
+	Vector3 MyFwdHist[LOSR_BASE + 1];
+	Vector3 TgtFwdHist[LOSR_BASE + 1];
+	double  TurnHistTime[LOSR_BASE + 1];
+	int     TurnHistCount;
+	int     TurnHistHead;
+	float   MyTurnRate_DegPerSec;							//내 선회율
+	float   TargetTurnRate_DegPerSec;						//적 선회율
+	float   MyTurnRadius_M;									//내 선회반경 = V / ω
+	float   TargetTurnRadius_M;								//적 선회반경
+	float   MyNz_Est;										//추정 하중배수 = √(1+(Vω/g)²). 서버는 Nz를 안 주므로 선회율로 역산
+
+	// ── (v7 A-1) 국면 분류 ───────────────────────────────────────────────────
+	// 교범 §4.3 첫 문장: "BFM은 정해진 기동의 집합이 아니다. 거리·각도·닫힘의 문제를
+	// 만들거나 푸는 동적 조합이다." -> 상태를 더 쌓지 말고 "지금 어떤 종류의 싸움인가"를
+	// 먼저 정하고 그에 맞는 해법을 고른다.
+	// ⚠️ 현재는 분류만 한다. Task_Tactical은 아직 이 값을 읽지 않는다(순수 지표).
+	int     FightType;										//FightTypeEnum
+	int     FightTypeHold;									//전환 히스테리시스 — 교범 "우유부단이 최악"
 
 };
