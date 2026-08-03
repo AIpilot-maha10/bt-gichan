@@ -56,10 +56,16 @@ MY_REWARD_CONFIG = {
     # 교전
     "damage_dealt_scale": 300.0,
     "damage_recv_scale": -450.0,  # 피격이 가해보다 비싸다 (§4.7)
-    # ⚠️ 내장 커리큘럼·training_record.py가 `damage_scale` 키를 읽는다
-    #    (training_record.py:123). 없으면 학습기록 저장이 실패한다(경고만 뜨고 진행은 됨).
-    #    우리는 가해/피격을 분리해 쓰므로 여기엔 가해 쪽 값을 호환용으로 둔다.
+    # ── training_record.py 호환 키 (없으면 학습기록 저장 실패) ────────────
+    #    training_record.py:121~130이 아래 키를 **대괄호로 직접** 읽는다.
+    #    .get()이 아니라 []라서 없으면 KeyError -> "Training record save failed".
+    #    경고만 뜨고 학습은 진행되지만 기록이 안 남는다. 실측으로 확인한 필수 키:
+    #      description / step_penalty / damage_scale / low_altitude_penalty
+    #      win_reward / loss_reward / draw_reward
+    #    우리는 가해/피격·저고도를 분리해 쓰므로 대표값을 호환용으로 둔다.
+    "description": "gichan v7.2 — BT 지식 이식 (3-Phase WEZ, ATA 우선, 코너 350kt, 추락 -400)",
     "damage_scale": 300.0,
+    "low_altitude_penalty": -0.15,
 
     # shaping
     "ata_scale": 0.10,           # 각도가 병목 — 가장 큰 shaping

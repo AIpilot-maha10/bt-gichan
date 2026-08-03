@@ -87,12 +87,31 @@ self.curriculum_dir = ROOT / "artifacts" / "curriculum" / output_name / output_t
 | 번들·체크포인트·training_log | `Release/artifacts/curriculum/...` (**C드라이브**) |
 | env 로그 | `artifacts_dir` 지정값 (D드라이브) |
 
-**대응**: 스모크 2반복이 296KB였다. 본 캠페인(1,750반복)은 규모가 다르므로
-**학습 시작 후 C드라이브 여유를 확인**하고, 필요하면
-`Release/artifacts/curriculum`을 D로 옮긴 뒤 정션을 걸거나 주기적으로 이동한다.
-(계획은 정션을 "경로가 숨어 디버깅이 어렵다"며 비권장 — 먼저 실제 증가율을 재는 게 낫다)
+**✅ 실측으로 해소됐다.** `checkpoint_interval=1`로 2반복을 돌려 쟀다:
 
-⚠️ `train_curriculum.py` 자체를 고치는 건 배포본 수정이라 신중해야 한다.
+| | 실측 |
+|---|---|
+| 체크포인트 2개 + 번들 | **3.9MB** |
+| 체크포인트 1개 | **약 1.8MB** |
+| 본 캠페인 예상 (1,750반복 / interval 25 → 약 70개) | **약 130MB** |
+| 번들·로그 포함 | **200MB 미만** |
+
+계획은 "체크포인트가 수십 GB까지 늘 수 있다"고 봤지만 **실제는 200MB 수준**이다.
+C드라이브 하드코딩은 문제가 되지 않는다. **옮길 필요 없다.**
+
+**③ 학습기록(training record) 저장은 커리큘럼 학습에서 원래 안 된다**
+
+`training_record.py:150`이 `result_history` 항목의 `item['iteration']`을 읽는데,
+`train_curriculum.py:832`는 `metric_window`를 그대로 넘기고 거기엔 그 키가 없다.
+(`train_rllib.py:1295`는 넣는다 — **단일 스테이지 학습용으로 쓰인 코드**다)
+
+→ **배포본의 비호환이고 보상 설정으로는 못 고친다.**
+   경고만 뜨고 **학습·체크포인트·번들은 정상**이다. 기록 문서만 안 남는다.
+
+단, `MY_REWARD_CONFIG`에 아래 키는 넣어뒀다 — `training_record.py`가 대괄호로
+직접 읽어 없으면 더 앞에서 실패한다(`.get()`이 아니다):
+`description` / `step_penalty` / `damage_scale` / `low_altitude_penalty` /
+`win_reward` / `loss_reward` / `draw_reward`
 
 ## 되돌리기
 
