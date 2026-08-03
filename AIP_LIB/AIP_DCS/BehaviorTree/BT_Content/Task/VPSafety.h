@@ -57,7 +57,28 @@ namespace Action
 		const float altAboveKnockout = (float)myPos.Z - 304.8f;
 		const bool needSpeed = (BB->MyCas_Kt > 1.0f && BB->MyCas_Kt < ED_CAS_TARGET_KT);
 		const bool haveRoom = (altAboveKnockout > ED_MIN_MARGIN_M);
-		const bool energyDive = needSpeed && haveRoom;
+
+		// ── (EP28) 내가 이미 에너지 우위면 환수하지 않는다 ──────────────────────
+		// 진단 격자가 EP24/EP26의 대가를 드러냈다 (같은 하네스·셀·시드, v7.1 대비):
+		//   energy_up      25.20s -> 0.42s
+		//   alt_split_high 23.81s -> 0.07s
+		//   alt_split_low  13.44s -> 0.73s
+		//   floor_fight    14.36s -> 0.90s
+		//   off_inside_tc  10.74s -> 1.04s
+		//   (반면 중립 구도는 개선: off_outside_tc 5.36->20.68, head_on 0.37->1.32,
+		//    beam_fast 0.47->1.16 — 예선 시나리오가 여기 속한다)
+		//
+		// 원인: 높은 곳/유리한 곳에서 시작하면 CAS가 350kt 미만이라 회복 강하가
+		//   발동해 **우위를 버리고 내려간다.** 퍼치를 스스로 포기하는 것이다.
+		//
+		// 교범 §4.2.3: "가용 에너지는 ①공격적 이익 ②방어적 필요 ③머지 준비 에만 쓴다.
+		//   그 외에는 유지하거나 늘린다." **앞서 있으면 환수가 아니라 사용해야 한다.**
+		//
+		// A-1의 EnergyAdvantage_M(비에너지 차, 미터)이 정확히 이 판별에 쓰인다.
+		// 대조 검증에서 불일치 0.0%로 확인된 값이다.
+		const bool behindOnEnergy = (BB->EnergyAdvantage_M < 0.0f);
+
+		const bool energyDive = needSpeed && haveRoom && behindOnEnergy;
 		if (energyDive)
 		{
 			if (maxDiveDeg < ED_MAX_DIVE_DEG) maxDiveDeg = ED_MAX_DIVE_DEG;
