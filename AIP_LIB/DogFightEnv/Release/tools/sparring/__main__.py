@@ -38,17 +38,35 @@ from tools.sparring.scenarios import (  # noqa: E402
 
 DEFAULT_OUT = r"D:\aipilot-artifacts\sparring"
 
-# 실질 스파링 상대는 jegalmin / btjegal 둘뿐이다.
-# AIP_BASE_target: Rule_forTraining.xml이 우리 트리로 덮여 초기화가 실패하던 것을
-#   배포본 원본으로 복구했다(8/3). 이제 초기화는 되지만 원본 트리가 Task_Empty뿐이고
-#   BT.CPP Fallback 버그로 아무것도 틱하지 않아 **2.5초 만에 스스로 추락**한다.
-#   -> 스파링 상대가 아니라 스모크 타깃으로만 쓴다.
+# ── 스파링 로스터 ────────────────────────────────────────────────────────────
+# ⚠️ **2상대 판정이 이 프로젝트 최대의 구조적 약점이었다** (8/4 확인).
+#   btjegal/jegalmin 둘로만 판정하다가 bt-v7.2를 채택했는데,
+#   우리 이전 버전 v7.1과 머리맞대기를 붙이니 3승 16패로 졌다.
+#   5상대로 넓히자 17 vs 19로 우위가 절반으로 줄었다(한 상대 기준 20->32였다).
+#   -> **판정은 기본 5상대로 한다.** 한 상대의 큰 숫자로 전체를 대표시키지 말 것.
+#
+# 구버전 gichan 계열은 기본값으로 ./Rule_gichan.xml을 읽는데 A-1 노드 4종
+# (LosRateUpdate/EnergyUpdate/TurnGeomUpdate/FightClassify)이 없어 초기화가 실패한다.
+# -> Rule_gichan_legacy.xml(A-1 이전 트리)을 지정해 되살렸다. 제출용이 아니다.
+LEGACY_XML = "Rule_gichan_legacy.xml"
+
 OPPONENTS = {
+    # 외부 팀 BT — 대회 상대의 대표성이 가장 높다
     "jegalmin": SideSpec("AIP_jegalmin.dll", None, "jegalmin"),
     "btjegal": SideSpec("AIP_BTJegal.dll", None, "btjegal"),
-    # 스모크 타깃 (2.5초 내 자멸). 하네스 동작 확인용
-    "base": SideSpec("AIP_BASE_target.dll", None, "base"),
+    # 자기 계열 — 성향이 달라 과적합 탐지에 쓴다
+    "v6": SideSpec("AIP_gichan_v6.dll", LEGACY_XML, "gichan_v6"),
+    "coordfix": SideSpec("AIP_gichan_coordfix.dll", LEGACY_XML, "coordfix"),
+    "v1": SideSpec("AIP_gichan_v1.dll", LEGACY_XML, "gichan_v1"),
+    "v71": SideSpec("AIP_gichan_v71.dll", None, "gichan_v71"),
+    # ⚠️ 상대로 무의미 — 양쪽 0승/적체력 1.000. 하네스 동작 확인용으로만.
+    #   AIP_BASE_target은 원본 트리가 Task_Empty뿐이라 2.5초 만에 자멸한다.
+    "base": SideSpec("AIP_BASE.dll", None, "base"),
+    "base_target": SideSpec("AIP_BASE_target.dll", None, "base_target"),
 }
+
+# 판정용 기본 로스터 (baseline/compare가 인자 없이 쓰는 값)
+DEFAULT_ROSTER = "jegalmin,btjegal,v6,coordfix,v71"
 
 
 def _run(own: SideSpec, opp: SideSpec, seeds: list[int], secs: float) -> list[MatchResult]:
@@ -89,7 +107,7 @@ def main() -> int:
     b.add_argument("--seed-base", type=int, default=10_000)
     b.add_argument("--secs", type=float, default=W.MATCH_DURATION_S)
     b.add_argument("--out", default=os.path.join(DEFAULT_OUT, "baseline"))
-    b.add_argument("--opponents", default="jegalmin,btjegal")
+    b.add_argument("--opponents", default=DEFAULT_ROSTER)
 
     c = sub.add_parser("compare", help="두 빌드 페어 비교")
     c.add_argument("--base-dll", required=True)
