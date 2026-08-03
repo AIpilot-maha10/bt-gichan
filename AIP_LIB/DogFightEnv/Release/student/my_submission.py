@@ -63,7 +63,8 @@ SERVER_IP = "221.151.77.208"                       # TODO: 경진대회 서버 I
 SERVER_PORT = 9999
 
 # 사용할 백엔드 모드 선택: "rl" | "bt" | "hybrid"
-MODE = "rl"
+# ★ 우리 제출은 BT 트랙이다. RL 번들은 아직 없다.
+MODE = "bt"
 
 # RL 모드 설정
 BUNDLE_DIR = "artifacts/models/team01/v1"          # TODO: 학습된 모델 경로
@@ -73,8 +74,12 @@ OBSERVATION_MODULE = ""                            # custom 관측이면 "studen
 # BT 모드 설정
 # - 기본 배포 Rule은 Rule_forTraining.xml입니다.
 # - 팀별 BT DLL/XML을 제출하는 경우 파일을 Release 루트에 두고 아래 이름을 바꾸세요.
-BT_DLL = "AIP_BASE.dll"
-BT_RULE_XML = "Rule_forTraining.xml"  # 예: "Rule_team01.xml"
+# ★ 우리 빌드. Release 루트에 둘 다 있어야 한다.
+#   Rule_gichan.xml은 A-1 지표 노드 4종(LosRateUpdate/EnergyUpdate/
+#   TurnGeomUpdate/FightClassify)을 참조하므로 **반드시 같이 갱신된 DLL**이어야 한다.
+#   XML만 새것이고 DLL이 구버전이면 "Node not recognized"로 초기화가 하드 크래시한다.
+BT_DLL = "AIP_gichan.dll"
+BT_RULE_XML = "Rule_gichan.xml"
 
 # Hybrid 모드 설정 (MODE="hybrid" 일 때만 사용)
 HYBRID_MODE = "residual"   # "residual" | "blend" | "switch"
@@ -82,7 +87,8 @@ RESIDUAL_SCALE = 0.35      # residual 모드 강도 (0~1, 클수록 RL 비중 �
 ALPHA = 0.5                # blend 모드 비율 (alpha × RL + (1-alpha) × BT)
 
 # 연결 설정
-AI_TYPE = AIType.ReinforcementLearning
+# MODE="bt"이므로 RuleBased로 신고한다 (AIType에 BehaviorTree 항목은 없다)
+AI_TYPE = AIType.RuleBased
 HEARTBEAT_SEC = 1.0
 COMMAND_DELAY_SEC = 0.0
 RECV_TIMEOUT_SEC = 0.2
